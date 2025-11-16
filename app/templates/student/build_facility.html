@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Build Facility - {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Build Facility</h1>
+<p class="lead">Company: {{ company.name }}</p>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">Cash</div>
+            <div class="card-body text-center">
+                <h4>${{ "%.2f"|format(company.cash) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">Goods</div>
+            <div class="card-body text-center">
+                <h4>{{ "%.0f"|format(company.goods_active + company.goods_backed_up) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">IP</div>
+            <div class="card-body text-center">
+                <h4>{{ "%.0f"|format(company.ip_active + company.ip_backed_up) }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">Influence</div>
+            <div class="card-body text-center">
+                <h4>{{ "%.0f"|format(company.influence_active + company.influence_backed_up) }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Available Facility Templates</h5>
+    </div>
+    <div class="card-body">
+        <div class="row" id="facility-templates">
+            <!-- Templates loaded via JavaScript -->
+        </div>
+    </div>
+</div>
+
+<!-- Build Modal -->
+<div class="modal fade" id="buildModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="buildModalTitle">Build Facility</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="facility_name" class="form-label">Facility Name</label>
+                    <input type="text" class="form-control" id="facility_name" placeholder="e.g., Main R&D Lab">
+                </div>
+
+                <h6>Build Cost:</h6>
+                <div id="build-cost-breakdown"></div>
+
+                <div id="cost-preview" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirm-build">Start Construction</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedTemplate = null;
+const companyId = {{ company.id }};
+
+// Load facility templates
+async function loadTemplates() {
+    try {
+        const response = await fetch('/api/facility/templates');
+        const data = await response.json();
+
+        const container = document.getElementById('facility-templates');
+        container.innerHTML = '';
+
+        data.templates.forEach(template => {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4 mb-3';
+
+            const typeColor = template.facility_type === 'physical' ? 'primary' : 'success';
+
+            col.innerHTML = `
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">${template.name}</h5>
+                        <span class="badge bg-${typeColor}">${template.facility_type}</span>
+                        <p class="card-text mt-2"><small>${template.description || ''}</small></p>
+                        <p><strong>Build Time:</strong> ${template.build_time_weeks} weeks</p>
+                        <p><strong>Operating Cost:</strong> $${template.weekly_operating_cost}/week</p>
+                        ${template.link_capacity > 0 ? `<p><strong>Link Capacity:</strong> ${template.link_capacity} products</p>` : ''}
+                        <button class="btn btn-primary btn-sm" onclick="showBuildModal(${template.id})">Build This</button>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(col);
+        });
+    } catch (error) {
+        console.error('Error loading templates:', error);
+    }
+}
+
+async function showBuildModal(templateId) {
+    try {
+        // Fetch template details
+        const response = await fetch('/api/facility/templates');
+        const data = await response.json();
+        selectedTemplate = data.templates.find(t => t.id === templateId);
+
+        if (!selectedTemplate) return;
+
+        document.getElementById('buildModalTitle').textContent = `Build ${selectedTemplate.name}`;
+
+        // Show build cost
+        let costHtml = '<ul>';
+        for (const [type, amount] of Object.entries(selectedTemplate.build_cost)) {
+            costHtml += `<li>${type}: ${amount}</li>`;
+        }
+        costHtml += '</ul>';
+        document.getElementById('build-cost-breakdown').innerHTML = costHtml;
+
+        // Preview cost (fetch from server)
+        const previewResponse = await fetch('/api/facility/build/preview', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                company_id: companyId,
+                template_id: templateId
+            })
+        });
+
+        const preview = await previewResponse.json();
+
+        let previewHtml = '<h6>Cost Calculation:</h6>';
+
+        if (Object.keys(preview.cash_substitution).length > 0) {
+            previewHtml += '<div class="alert alert-warning">';
+            previewHtml += '<strong>Missing Capital:</strong> You will pay cash for missing capital:<ul>';
+            for (const [type, cost] of Object.entries(preview.cash_substitution)) {
+                previewHtml += `<li>${type}: $${cost.toFixed(2)}</li>`;
+            }
+            previewHtml += '</ul></div>';
+        }
+
+        previewHtml += `<p><strong>Total Cash Cost:</strong> $${preview.total_cash_cost.toFixed(2)}</p>`;
+
+        if (!preview.can_afford) {
+            previewHtml += '<div class="alert alert-danger">Insufficient cash!</div>';
+            document.getElementById('confirm-build').disabled = true;
+        } else {
+            previewHtml += '<div class="alert alert-success">Ready to build!</div>';
+            document.getElementById('confirm-build').disabled = false;
+        }
+
+        document.getElementById('cost-preview').innerHTML = previewHtml;
+
+        // Show modal
+        new bootstrap.Modal(document.getElementById('buildModal')).show();
+    } catch (error) {
+        console.error('Error showing build modal:', error);
+    }
+}
+
+document.getElementById('confirm-build').addEventListener('click', async function() {
+    const facilityName = document.getElementById('facility_name').value || selectedTemplate.name;
+
+    try {
+        const response = await fetch('/api/facility/build', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                company_id: companyId,
+                template_id: selectedTemplate.id,
+                facility_name: facilityName
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showAlert(`Construction started! ${facilityName} will be ready on week ${result.completion_week}`, 'success');
+            setTimeout(() => {
+                window.location.href = '/student/company/{{ company.id }}';
+            }, 2000);
+        } else {
+            showAlert(result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error building facility:', error);
+        showAlert('Error starting construction', 'danger');
+    }
+});
+
+// Load templates on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadTemplates();
+});
+</script>
+{% endblock %}

@@ -125,8 +125,9 @@
 <div class="row mt-4">
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header">
-                <h5>Facilities</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Facilities</h5>
+                <a href="{{ url_for('student.build_facility', company_id=company.id) }}" class="btn btn-success btn-sm">Build Facility</a>
             </div>
             <div class="card-body">
                 {% if company.facilities %}
@@ -168,7 +169,23 @@
                     </table>
                 {% else %}
                     <p>No facilities yet. Build your first facility to start generating capital!</p>
+                    <a href="{{ url_for('student.build_facility', company_id=company.id) }}" class="btn btn-primary">Build Your First Facility</a>
                 {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Construction in Progress</h5>
+            </div>
+            <div class="card-body">
+                <div id="construction-timers">
+                    <p class="text-muted">Loading...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -230,4 +247,54 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load construction timers
+async function loadConstructionTimers() {
+    try {
+        const response = await fetch('/api/company/{{ company.id }}/construction_timers');
+        const data = await response.json();
+
+        const container = document.getElementById('construction-timers');
+
+        if (data.timers && data.timers.length > 0) {
+            let html = '<table class="table"><thead><tr><th>Facility</th><th>Template</th><th>Started</th><th>Completes</th><th>Progress</th></tr></thead><tbody>';
+
+            data.timers.forEach(timer => {
+                const currentWeek = {{ company.game.current_week }};
+                const totalWeeks = timer.completion_week - timer.start_week;
+                const weeksElapsed = currentWeek - timer.start_week;
+                const progress = Math.min(100, (weeksElapsed / totalWeeks) * 100);
+
+                html += `<tr>
+                    <td>${timer.facility_name}</td>
+                    <td>${timer.template ? timer.template.name : 'Unknown'}</td>
+                    <td>Week ${timer.start_week}</td>
+                    <td>Week ${timer.completion_week}</td>
+                    <td>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" style="width: ${progress}%" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">${progress.toFixed(0)}%</div>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<p class="text-muted">No facilities under construction</p>';
+        }
+    } catch (error) {
+        console.error('Error loading construction timers:', error);
+        document.getElementById('construction-timers').innerHTML = '<p class="text-danger">Error loading timers</p>';
+    }
+}
+
+// Load on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadConstructionTimers();
+});
+</script>
 {% endblock %}

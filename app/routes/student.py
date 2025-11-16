@@ -135,6 +135,23 @@ def create_company():
     return render_template('student/create_company.html', games=games)
 
 
+@bp.route('/company/<int:company_id>/build')
+def build_facility(company_id):
+    """Build facility page"""
+    auth_check = require_student()
+    if auth_check:
+        return auth_check
+
+    company = Company.query.get_or_404(company_id)
+    player = Player.query.get(session['player_id'])
+
+    if company.owner_id != player.id:
+        flash('You do not own this company', 'error')
+        return redirect(url_for('student.dashboard'))
+
+    return render_template('student/build_facility.html', company=company)
+
+
 @bp.route('/market')
 def market():
     """Stock market view"""

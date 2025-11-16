@@ -343,3 +343,174 @@ def player_wealth():
 
     wealth = stock_market.get_player_total_wealth(player)
     return jsonify(wealth)
+
+
+@bp.route('/facility/templates')
+def facility_templates():
+    """Get all facility templates"""
+    from app.models import FacilityTemplate
+    templates = FacilityTemplate.query.all()
+    return jsonify({
+        'templates': [template.to_dict() for template in templates]
+    })
+
+
+@bp.route('/facility/build', methods=['POST'])
+def build_facility():
+    """Start construction of a facility"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    company_id = data.get('company_id')
+    template_id = data.get('template_id')
+    facility_name = data.get('facility_name')
+
+    company = Company.query.get_or_404(company_id)
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    from app.models import FacilityTemplate
+    template = FacilityTemplate.query.get_or_404(template_id)
+
+    game = company.game
+    cfg = config['default']
+
+    from app.game_engine import construction
+    result = construction.start_facility_construction(
+        company, template, facility_name, game.current_week, cfg
+    )
+
+    if result['success']:
+        db.session.commit()
+
+    return jsonify(result)
+
+
+@bp.route('/facility/build/preview', methods=['POST'])
+def preview_facility_cost():
+    """Preview what it would cost to build a facility"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    company_id = data.get('company_id')
+    template_id = data.get('template_id')
+
+    company = Company.query.get_or_404(company_id)
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    from app.models import FacilityTemplate
+    template = FacilityTemplate.query.get_or_404(template_id)
+
+    cfg = config['default']
+
+    from app.game_engine import construction
+    breakdown = construction.get_construction_cost_breakdown(company, template, cfg)
+
+    return jsonify(breakdown)
+
+
+@bp.route('/facility/<int:facility_id>/link_product', methods=['POST'])
+def link_product_to_facility(facility_id):
+    """Link a product to a sales facility"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    product_id = data.get('product_id')
+
+    facility = Facility.query.get_or_404(facility_id)
+    company = facility.company
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    product = Product.query.get_or_404(product_id)
+
+    if product.company_id != company.id:
+        return jsonify({'success': False, 'message': 'Product not owned by this company'}), 403
+
+    # Check if facility can link products
+    if facility.template.link_capacity <= 0:
+        return jsonify({'success': False, 'message': 'This facility cannot link products'}), 400
+
+    # Check current linked products
+    linked_products = facility.get_linked_products()
+
+    if product_id in linked_products:
+        return jsonify({'success': False, 'message': 'Product already linked to this facility'}), 400
+
+    if len(linked_products) >= facility.template.link_capacity:
+        return jsonify({'success': False, 'message': f'Facility link capacity full ({facility.template.link_capacity})'}), 400
+
+    # Add product to linked list
+    linked_products.append(product_id)
+    facility.set_linked_products(linked_products)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': f'Product "{product.name}" linked to facility "{facility.name}"',
+        'linked_products': linked_products
+    })
+
+
+@bp.route('/facility/<int:facility_id>/unlink_product', methods=['POST'])
+def unlink_product_from_facility(facility_id):
+    """Unlink a product from a sales facility"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    product_id = data.get('product_id')
+
+    facility = Facility.query.get_or_404(facility_id)
+    company = facility.company
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    # Remove product from linked list
+    linked_products = facility.get_linked_products()
+
+    if product_id not in linked_products:
+        return jsonify({'success': False, 'message': 'Product not linked to this facility'}), 400
+
+    linked_products.remove(product_id)
+    facility.set_linked_products(linked_products)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': 'Product unlinked from facility',
+        'linked_products': linked_products
+    })
+
+
+@bp.route('/company/<int:company_id>/construction_timers')
+def get_construction_timers(company_id):
+    """Get all active construction timers for a company"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    company = Company.query.get_or_404(company_id)
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    timers = company.construction_timers
+
+    return jsonify({
+        'timers': [timer.to_dict() for timer in timers]
+    })

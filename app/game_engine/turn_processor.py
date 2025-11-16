@@ -137,6 +137,26 @@ def process_weekly_turn(game, config):
     }
 
     # ====================
+    # Phase 8b: Sales Revenue Generation
+    # ====================
+    from app.game_engine import sales
+    sales_summary = []
+    for company in companies:
+        result = sales.process_all_sales_facilities(company, current_week, config)
+        if result['total_revenue'] > 0:
+            sales_summary.append({
+                'company': company.name,
+                'total_revenue': result['total_revenue'],
+                'facilities': result['facility_results']
+            })
+
+    phase_summaries['sales_revenue'] = {
+        'companies_processed': len(sales_summary),
+        'total_revenue': sum(s['total_revenue'] for s in sales_summary),
+        'details': sales_summary
+    }
+
+    # ====================
     # Phase 9: Storage Costs Deducted
     # ====================
     storage_summary = []
@@ -274,26 +294,19 @@ def process_weekly_turn(game, config):
     # ====================
     # Phase 17: Complete Construction Timers
     # ====================
+    from app.game_engine import construction
     completion_summary = []
     for company in companies:
         timers = ConstructionTimer.query.filter_by(company_id=company.id).all()
         for timer in timers:
             if timer.completion_week <= current_week:
-                # Create facility
-                new_facility = Facility(
-                    company_id=company.id,
-                    template_id=timer.template_id,
-                    name=timer.facility_name,
-                    is_active=True,
-                    condition=100.0,
-                    weeks_until_maintenance=config.MAINTENANCE_FREQUENCY_WEEKS
-                )
-                db.session.add(new_facility)
-                db.session.delete(timer)
+                # Complete construction and create facility
+                new_facility = construction.complete_construction_timer(timer, config)
 
                 completion_summary.append({
                     'company': company.name,
-                    'facility': timer.facility_name,
+                    'facility': new_facility.name,
+                    'template': new_facility.template.name,
                     'completed': True
                 })
 

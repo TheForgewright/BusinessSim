@@ -43,8 +43,16 @@ class Config:
     STORAGE_COST_ACTIVE_LABOR = 2.0
     STORAGE_COST_BACKED_UP_LABOR = 0.5
 
-    # Capital Attrition
-    CAPITAL_ATTRITION_WEEKS = 7  # Capital decays if not generated for 7 weeks
+    # Facility Construction - Cash Equivalent Prices
+    # If player doesn't have capital, they can pay cash instead
+    CASH_EQUIVALENT_GOODS = 10.0  # 1 Goods = 10 Cash
+    CASH_EQUIVALENT_IP = 15.0  # 1 IP = 15 Cash
+    CASH_EQUIVALENT_INFLUENCE = 12.0  # 1 Influence = 12 Cash
+    CASH_EQUIVALENT_LABOR = 8.0  # 1 Labor = 8 Cash
+
+    # Sales Revenue Settings
+    BASE_GOODS_SALE_VALUE = 10.0  # Base cash value per goods sold
+    INFLUENCE_SALES_MULTIPLIER = 1.0  # Spending 1 influence = 1x more goods sold
 
     # Market Settings
     MARKET_SATURATION_RATE = 0.3  # Saturation penalty rate
