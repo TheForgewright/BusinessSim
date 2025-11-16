@@ -237,3 +237,24 @@ def delete_save():
         return redirect(url_for('professor.manage_saves', game_id=game_id))
     else:
         return redirect(url_for('professor.dashboard'))
+
+
+@bp.route('/game/<int:game_id>/analytics')
+def analytics(game_id):
+    """View analytics dashboard for game"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    game = Game.query.get_or_404(game_id)
+    companies = Company.query.filter_by(game_id=game_id).all()
+
+    # Get selected companies from query params or default to all
+    selected_companies = request.args.getlist('companies', type=int)
+    if not selected_companies:
+        selected_companies = [c.id for c in companies]
+
+    return render_template('professor/analytics.html',
+                          game=game,
+                          companies=companies,
+                          selected_companies=selected_companies)

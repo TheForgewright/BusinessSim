@@ -9,7 +9,8 @@ from app.game_engine import (
     capital_generation,
     debt_management,
     stock_market,
-    product_management
+    product_management,
+    analytics
 )
 import json
 
@@ -33,6 +34,17 @@ def process_weekly_turn(game, config):
 
     phase_summaries = {}
     companies = Company.query.filter_by(game_id=game.id).all()
+
+    # Initialize analytics tracking for each company
+    company_analytics_data = {}
+    for company in companies:
+        company_analytics_data[company.id] = {
+            'depreciation_amount': 0.0,
+            'sales_revenue': 0.0,
+            'goods_sold': 0.0,
+            'influence_spent': 0.0,
+            'sales_facilities': []
+        }
 
     # ====================
     # Phase 1: Track Equity History
@@ -76,12 +88,17 @@ def process_weekly_turn(game, config):
         for facility in company.facilities:
             condition_before = facility.condition
             facility_management.apply_facility_depreciation(facility, config)
+            depreciation_amount = condition_before - facility.condition
+
+            # Track for analytics
+            company_analytics_data[company.id]['depreciation_amount'] += depreciation_amount
+
             depreciation_summary.append({
                 'company': company.name,
                 'facility': facility.name,
                 'condition_before': condition_before,
                 'condition_after': facility.condition,
-                'depreciation': condition_before - facility.condition
+                'depreciation': depreciation_amount
             })
 
     phase_summaries['depreciation'] = {
@@ -143,6 +160,17 @@ def process_weekly_turn(game, config):
     sales_summary = []
     for company in companies:
         result = sales.process_all_sales_facilities(company, current_week, config)
+
+        # Track sales data for analytics
+        company_analytics_data[company.id]['sales_revenue'] += result['total_revenue']
+
+        for facility_result in result['facility_results']:
+            sales_result = facility_result['result']
+            if sales_result['success']:
+                company_analytics_data[company.id]['goods_sold'] += sales_result['goods_sold']
+                company_analytics_data[company.id]['influence_spent'] += sales_result['influence_spent']
+                company_analytics_data[company.id]['sales_facilities'].append(facility_result['facility_id'])
+
         if result['total_revenue'] > 0:
             sales_summary.append({
                 'company': company.name,
@@ -464,7 +492,32 @@ def process_weekly_turn(game, config):
     }
 
     # ====================
-    # Phase 29: Refresh UI
+    # Phase 29: Record Analytics Data
+    # ====================
+    analytics_summary = []
+    for company in companies:
+        weekly_data = company_analytics_data.get(company.id, {})
+        history = analytics.record_weekly_metrics(
+            company=company,
+            current_week=current_week,
+            config=config,
+            weekly_data=weekly_data
+        )
+        analytics_summary.append({
+            'company': company.name,
+            'equity': history.equity,
+            'cash': history.cash,
+            'sales_revenue': history.sales_revenue,
+            'sales_profit': history.sales_profit
+        })
+
+    phase_summaries['analytics'] = {
+        'companies_recorded': len(analytics_summary),
+        'details': analytics_summary
+    }
+
+    # ====================
+    # Phase 30: Refresh UI
     # ====================
     phase_summaries['ui_refresh'] = {
         'message': 'UI will update when clients refresh'

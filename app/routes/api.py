@@ -514,3 +514,93 @@ def get_construction_timers(company_id):
     return jsonify({
         'timers': [timer.to_dict() for timer in timers]
     })
+
+
+@bp.route('/analytics/game/<int:game_id>')
+def get_game_analytics(game_id):
+    """Get analytics for all companies in a game (professor only)"""
+    player = get_current_player()
+    if not player or not player.is_professor:
+        return jsonify({'success': False, 'message': 'Professor access required'}), 403
+
+    game = Game.query.get_or_404(game_id)
+
+    # Get selected company IDs from query params
+    company_ids_str = request.args.get('companies', '')
+    if company_ids_str:
+        company_ids = [int(id) for id in company_ids_str.split(',') if id]
+    else:
+        # Default to all companies
+        company_ids = [c.id for c in Company.query.filter_by(game_id=game_id).all()]
+
+    from app.game_engine import analytics
+    analytics_data = {}
+
+    for company_id in company_ids:
+        data = analytics.get_company_analytics(company_id)
+        company = Company.query.get(company_id)
+        if company and company.game_id == game_id:
+            analytics_data[company_id] = {
+                'company_name': company.name,
+                'data': data
+            }
+
+    return jsonify(analytics_data)
+
+
+@bp.route('/analytics/company/<int:company_id>')
+def get_company_analytics(company_id):
+    """Get analytics for a specific company (for students)"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    company = Company.query.get_or_404(company_id)
+    game = company.game
+
+    # Check permissions
+    can_view = False
+
+    # Professor can always view
+    if player.is_professor:
+        can_view = True
+    # Student must own the company
+    elif company.owner_id == player.id:
+        # Check if game is over and endgame analytics are enabled
+        if game.current_week >= game.total_weeks and game.allow_endgame_analytics:
+            can_view = True
+        # Check if professor has enabled analytics for this company
+        if game.is_analytics_visible_for_company(company.id):
+            can_view = True
+
+    if not can_view:
+        return jsonify({'success': False, 'message': 'Analytics not available'}), 403
+
+    from app.game_engine import analytics
+    data = analytics.get_company_analytics(company_id)
+
+    return jsonify(data)
+
+
+@bp.route('/analytics/game/<int:game_id>/visibility/<int:company_id>', methods=['POST'])
+def toggle_analytics_visibility(game_id, company_id):
+    """Toggle analytics visibility for a company (professor only)"""
+    player = get_current_player()
+    if not player or not player.is_professor:
+        return jsonify({'success': False, 'message': 'Professor access required'}), 403
+
+    game = Game.query.get_or_404(game_id)
+    company = Company.query.get_or_404(company_id)
+
+    if company.game_id != game_id:
+        return jsonify({'success': False, 'message': 'Company not in this game'}), 400
+
+    # Toggle visibility
+    new_state = game.toggle_analytics_visibility(company_id)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'visible': new_state,
+        'company_id': company_id
+    })

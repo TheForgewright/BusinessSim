@@ -16,12 +16,41 @@ class Game(db.Model):
     total_weeks = db.Column(db.Integer, default=50)
     max_turn_advancement = db.Column(db.Integer, default=3)
     is_active = db.Column(db.Boolean, default=True)
+
+    # Analytics Settings
+    allow_endgame_analytics = db.Column(db.Boolean, default=True)  # Show analytics to all players at game end
+    analytics_visible_json = db.Column(db.Text, default='{}')  # JSON: {company_id: bool} - professor can toggle per player
+    sales_profit_facility_multiplier = db.Column(db.Float, default=0.8)  # 80% of facility cost attributed to sales
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
     companies = db.relationship('Company', backref='game', lazy=True, cascade='all, delete-orphan')
     events = db.relationship('Event', backref='game', lazy=True, cascade='all, delete-orphan')
     tags = db.relationship('Tag', backref='game', lazy=True, cascade='all, delete-orphan')
+
+    def get_analytics_visible(self):
+        """Get dict of company_id -> visibility"""
+        if not self.analytics_visible_json:
+            return {}
+        return json.loads(self.analytics_visible_json)
+
+    def set_analytics_visible(self, visible_dict):
+        """Set analytics visibility dict"""
+        self.analytics_visible_json = json.dumps(visible_dict)
+
+    def is_analytics_visible_for_company(self, company_id):
+        """Check if analytics are visible for a specific company"""
+        visible = self.get_analytics_visible()
+        return visible.get(str(company_id), False)
+
+    def toggle_analytics_visibility(self, company_id):
+        """Toggle analytics visibility for a company"""
+        visible = self.get_analytics_visible()
+        company_key = str(company_id)
+        visible[company_key] = not visible.get(company_key, False)
+        self.set_analytics_visible(visible)
+        return visible[company_key]
 
     def to_dict(self):
         return {
@@ -31,6 +60,8 @@ class Game(db.Model):
             'total_weeks': self.total_weeks,
             'max_turn_advancement': self.max_turn_advancement,
             'is_active': self.is_active,
+            'allow_endgame_analytics': self.allow_endgame_analytics,
+            'sales_profit_facility_multiplier': self.sales_profit_facility_multiplier,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
@@ -105,6 +136,7 @@ class Company(db.Model):
     products = db.relationship('Product', backref='company', lazy=True, cascade='all, delete-orphan')
     stock_ownership = db.relationship('StockOwnership', backref='company', lazy=True, cascade='all, delete-orphan')
     construction_timers = db.relationship('ConstructionTimer', backref='company', lazy=True, cascade='all, delete-orphan')
+    history = db.relationship('CompanyHistory', backref='company', lazy=True, cascade='all, delete-orphan')
 
     def get_attrition_counters(self):
         """Parse JSON attrition counters"""
@@ -156,6 +188,49 @@ class Company(db.Model):
             'cash_reserve': self.cash_reserve,
             'current_equity': self.current_equity,
             'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class CompanyHistory(db.Model):
+    """Historical metrics for analytics"""
+    __tablename__ = 'company_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    week = db.Column(db.Integer, nullable=False)
+
+    # Financial Metrics
+    equity = db.Column(db.Float, default=0.0)
+    cash = db.Column(db.Float, default=0.0)
+    total_debt = db.Column(db.Float, default=0.0)
+
+    # Operations Metrics
+    weekly_depreciation = db.Column(db.Float, default=0.0)  # Total depreciation this week
+    sales_revenue = db.Column(db.Float, default=0.0)  # Revenue from goods sold
+    sales_profit = db.Column(db.Float, default=0.0)  # Net profit after all costs
+
+    # Sales Cost Components (for profit calculation)
+    goods_cost = db.Column(db.Float, default=0.0)  # Cost to produce goods sold
+    influence_cost = db.Column(db.Float, default=0.0)  # Cost of influence spent on sales
+    facility_cost = db.Column(db.Float, default=0.0)  # Allocated cost of sales facilities
+
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'company_id': self.company_id,
+            'week': self.week,
+            'equity': self.equity,
+            'cash': self.cash,
+            'total_debt': self.total_debt,
+            'weekly_depreciation': self.weekly_depreciation,
+            'sales_revenue': self.sales_revenue,
+            'sales_profit': self.sales_profit,
+            'goods_cost': self.goods_cost,
+            'influence_cost': self.influence_cost,
+            'facility_cost': self.facility_cost,
+            'recorded_at': self.recorded_at.isoformat() if self.recorded_at else None
         }
 
 

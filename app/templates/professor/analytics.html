@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Dashboard - {{ game.name }}{% endblock %}
+
+{% block content %}
+<h1>Analytics Dashboard</h1>
+<p class="lead">Game: {{ game.name }} (Week {{ game.current_week }} / {{ game.total_weeks }})</p>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Company Selection</h5>
+                <a href="{{ url_for('professor.game_view', game_id=game.id) }}" class="btn btn-secondary btn-sm">Back to Game</a>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for company in companies %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">{{ company.name }}</h6>
+                                <p class="small mb-2">Owner: {{ company.owner.username }}</p>
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input company-toggle" type="checkbox"
+                                           id="company-{{ company.id }}"
+                                           data-company-id="{{ company.id }}"
+                                           {% if company.id in selected_companies %}checked{% endif %}>
+                                    <label class="form-check-label" for="company-{{ company.id }}">
+                                        Show in charts
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input visibility-toggle" type="checkbox"
+                                           id="visible-{{ company.id }}"
+                                           data-company-id="{{ company.id }}"
+                                           {% if game.is_analytics_visible_for_company(company.id) %}checked{% endif %}>
+                                    <label class="form-check-label" for="visible-{{ company.id }}">
+                                        <small>Player can view</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Total Equity Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="equityChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Cash on Hand</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="cashChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Debt Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="debtChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Weekly Depreciation</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="depreciationChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Total Sales Revenue</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="salesRevenueChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Sales Profit (Net)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="salesProfitChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const gameId = {{ game.id }};
+let selectedCompanies = new Set({{ selected_companies | tojson }});
+let charts = {};
+
+// Color palette for companies
+const colors = [
+    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+    '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'
+];
+
+// Initialize charts
+async function initCharts() {
+    const analyticsData = await fetchAnalytics();
+
+    charts.equity = createChart('equityChart', 'Equity', analyticsData, 'equity');
+    charts.cash = createChart('cashChart', 'Cash', analyticsData, 'cash');
+    charts.debt = createChart('debtChart', 'Debt', analyticsData, 'debt');
+    charts.depreciation = createChart('depreciationChart', 'Depreciation', analyticsData, 'depreciation');
+    charts.salesRevenue = createChart('salesRevenueChart', 'Revenue', analyticsData, 'sales_revenue');
+    charts.salesProfit = createChart('salesProfitChart', 'Profit', analyticsData, 'sales_profit');
+}
+
+async function fetchAnalytics() {
+    const companyIds = Array.from(selectedCompanies).join(',');
+    const response = await fetch(`/api/analytics/game/${gameId}?companies=${companyIds}`);
+    const data = await response.json();
+    return data;
+}
+
+function createChart(canvasId, label, analyticsData, metricKey) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+
+    const datasets = Object.entries(analyticsData).map(([companyId, companyData], index) => {
+        return {
+            label: companyData.company_name,
+            data: companyData.data[metricKey],
+            borderColor: colors[index % colors.length],
+            backgroundColor: colors[index % colors.length] + '20',
+            tension: 0.1
+        };
+    });
+
+    // Get weeks from first company (they should all have the same weeks)
+    const weeks = Object.values(analyticsData)[0]?.data.weeks || [];
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: weeks,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Week'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: label
+                    },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+async function updateCharts() {
+    const analyticsData = await fetchAnalytics();
+
+    // Update each chart
+    for (const [chartKey, chart] of Object.entries(charts)) {
+        // Get metric key from chart dataset label
+        const metricMap = {
+            'equity': 'equity',
+            'cash': 'cash',
+            'debt': 'debt',
+            'depreciation': 'depreciation',
+            'salesRevenue': 'sales_revenue',
+            'salesProfit': 'sales_profit'
+        };
+        const metricKey = metricMap[chartKey];
+
+        // Get weeks from first company
+        const weeks = Object.values(analyticsData)[0]?.data.weeks || [];
+        chart.data.labels = weeks;
+
+        // Update datasets
+        chart.data.datasets = Object.entries(analyticsData).map(([companyId, companyData], index) => {
+            return {
+                label: companyData.company_name,
+                data: companyData.data[metricKey],
+                borderColor: colors[index % colors.length],
+                backgroundColor: colors[index % colors.length] + '20',
+                tension: 0.1
+            };
+        });
+
+        chart.update();
+    }
+}
+
+// Handle company selection
+document.querySelectorAll('.company-toggle').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const companyId = parseInt(this.dataset.companyId);
+        if (this.checked) {
+            selectedCompanies.add(companyId);
+        } else {
+            selectedCompanies.delete(companyId);
+        }
+        updateCharts();
+    });
+});
+
+// Handle visibility toggle
+document.querySelectorAll('.visibility-toggle').forEach(checkbox => {
+    checkbox.addEventListener('change', async function() {
+        const companyId = parseInt(this.dataset.companyId);
+        const response = await fetch(`/api/analytics/game/${gameId}/visibility/${companyId}`, {
+            method: 'POST'
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            showAlert(`Analytics visibility ${result.visible ? 'enabled' : 'disabled'} for this player`, 'success');
+        } else {
+            showAlert('Error updating visibility', 'danger');
+            this.checked = !this.checked; // Revert checkbox
+        }
+    });
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (selectedCompanies.size > 0) {
+        initCharts();
+    } else {
+        // Select all companies by default if none selected
+        document.querySelectorAll('.company-toggle').forEach(checkbox => {
+            checkbox.checked = true;
+            selectedCompanies.add(parseInt(checkbox.dataset.companyId));
+        });
+        initCharts();
+    }
+});
+</script>
+{% endblock %}

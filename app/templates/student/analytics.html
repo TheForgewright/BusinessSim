@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Company Analytics</h1>
+<p class="lead">Company: {{ company.name }}</p>
+
+{% if not can_view_analytics %}
+<div class="alert alert-warning">
+    <h4>Analytics Not Available</h4>
+    <p>Analytics are not currently available for your company.</p>
+    {% if game.current_week < game.total_weeks %}
+        <p>Analytics will become available when the game ends{% if not game.allow_endgame_analytics %} if the professor enables them{% endif %}.</p>
+    {% else %}
+        <p>The professor has not enabled analytics viewing for your company.</p>
+    {% endif %}
+</div>
+<a href="{{ url_for('student.company_view', company_id=company.id) }}" class="btn btn-secondary">Back to Company</a>
+{% else %}
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Performance Metrics</h5>
+                <a href="{{ url_for('student.company_view', company_id=company.id) }}" class="btn btn-secondary btn-sm">Back to Company</a>
+            </div>
+            <div class="card-body">
+                <p>Review your company's performance over the course of the game.</p>
+                {% if game.current_week >= game.total_weeks %}
+                    <div class="alert alert-info">
+                        <strong>Game Complete!</strong> Final week: {{ game.current_week }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Total Equity Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="equityChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Cash on Hand</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="cashChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Debt Over Time</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="debtChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Weekly Depreciation</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="depreciationChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Total Sales Revenue</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="salesRevenueChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Sales Profit (Net)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="salesProfitChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if can_view_analytics %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const companyId = {{ company.id }};
+
+// Initialize charts
+async function initCharts() {
+    const analyticsData = await fetchAnalytics();
+
+    createChart('equityChart', 'Equity ($)', analyticsData, 'equity', '#3b82f6');
+    createChart('cashChart', 'Cash ($)', analyticsData, 'cash', '#10b981');
+    createChart('debtChart', 'Debt ($)', analyticsData, 'debt', '#ef4444');
+    createChart('depreciationChart', 'Depreciation (%)', analyticsData, 'depreciation', '#f59e0b');
+    createChart('salesRevenueChart', 'Revenue ($)', analyticsData, 'sales_revenue', '#8b5cf6');
+    createChart('salesProfitChart', 'Profit ($)', analyticsData, 'sales_profit', '#ec4899');
+}
+
+async function fetchAnalytics() {
+    const response = await fetch(`/api/analytics/company/${companyId}`);
+    const data = await response.json();
+    return data;
+}
+
+function createChart(canvasId, label, analyticsData, metricKey, color) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: analyticsData.weeks,
+            datasets: [{
+                label: label,
+                data: analyticsData[metricKey],
+                borderColor: color,
+                backgroundColor: color + '20',
+                tension: 0.1,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Week'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: label
+                    },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+});
+</script>
+{% endif %}
+{% endblock %}

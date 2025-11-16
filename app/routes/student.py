@@ -186,3 +186,37 @@ def portfolio():
     return render_template('student/portfolio.html',
                           player=player,
                           wealth=wealth)
+
+
+@bp.route('/company/<int:company_id>/analytics')
+def analytics(company_id):
+    """View company analytics"""
+    auth_check = require_student()
+    if auth_check:
+        return auth_check
+
+    company = Company.query.get_or_404(company_id)
+    player = Player.query.get(session['player_id'])
+
+    # Check if player owns this company
+    if company.owner_id != player.id:
+        flash('You do not own this company', 'error')
+        return redirect(url_for('student.dashboard'))
+
+    game = company.game
+
+    # Check if player can view analytics
+    can_view = False
+
+    # Check if game is over and endgame analytics are enabled
+    if game.current_week >= game.total_weeks and game.allow_endgame_analytics:
+        can_view = True
+
+    # Check if professor has enabled analytics for this company
+    if game.is_analytics_visible_for_company(company.id):
+        can_view = True
+
+    return render_template('student/analytics.html',
+                          company=company,
+                          game=game,
+                          can_view_analytics=can_view)
