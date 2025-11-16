@@ -3,8 +3,17 @@
 {% block title %}{{ company.name }} - Company View{% endblock %}
 
 {% block content %}
-<h1>{{ company.name }}</h1>
-<p class="lead">Week {{ company.game.current_week }} / {{ company.game.total_weeks }}</p>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="mb-0">{{ company.name }}</h1>
+        <p class="lead mb-0">Week {{ company.game.current_week }} / {{ company.game.total_weeks }}</p>
+    </div>
+    <div>
+        <a href="{{ url_for('student.analytics', company_id=company.id) }}" class="btn btn-info">
+            📊 View Analytics
+        </a>
+    </div>
+</div>
 
 <div class="row">
     <div class="col-md-3">

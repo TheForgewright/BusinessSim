@@ -3,40 +3,57 @@
 {% block title %}Analytics Dashboard - {{ game.name }}{% endblock %}
 
 {% block content %}
-<h1>Analytics Dashboard</h1>
+<h1>Analytics Dashboard - Comparative View</h1>
 <p class="lead">Game: {{ game.name }} (Week {{ game.current_week }} / {{ game.total_weeks }})</p>
 
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Company Selection</h5>
-                <a href="{{ url_for('professor.game_view', game_id=game.id) }}" class="btn btn-secondary btn-sm">Back to Game</a>
+                <div>
+                    <h5 class="mb-0">Company Selection for Comparison</h5>
+                    <small class="text-muted">Select which companies to display on the charts below</small>
+                </div>
+                <div>
+                    <button id="selectAllBtn" class="btn btn-primary btn-sm me-2">Select All</button>
+                    <button id="deselectAllBtn" class="btn btn-outline-secondary btn-sm me-2">Deselect All</button>
+                    <a href="{{ url_for('professor.game_view', game_id=game.id) }}" class="btn btn-secondary btn-sm">Back to Game</a>
+                </div>
             </div>
             <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <strong>Tip:</strong> Toggle companies on/off to compare their performance. Each company is shown with a unique color on the charts.
+                    <span id="selectedCount" class="badge bg-primary ms-2"></span>
+                </div>
                 <div class="row">
                     {% for company in companies %}
                     <div class="col-md-6 col-lg-4 mb-3">
-                        <div class="card">
+                        <div class="card company-card" id="card-{{ company.id }}" style="border-left: 4px solid transparent;">
                             <div class="card-body">
-                                <h6 class="card-title">{{ company.name }}</h6>
-                                <p class="small mb-2">Owner: {{ company.owner.username }}</p>
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h6 class="card-title mb-1">{{ company.name }}</h6>
+                                        <p class="small text-muted mb-0">Owner: {{ company.owner.username }}</p>
+                                    </div>
+                                    <span class="chart-color-indicator" data-company-id="{{ company.id }}" style="display: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #dee2e6;"></span>
+                                </div>
                                 <div class="form-check form-switch mb-2">
                                     <input class="form-check-input company-toggle" type="checkbox"
                                            id="company-{{ company.id }}"
                                            data-company-id="{{ company.id }}"
                                            {% if company.id in selected_companies %}checked{% endif %}>
-                                    <label class="form-check-label" for="company-{{ company.id }}">
+                                    <label class="form-check-label fw-bold" for="company-{{ company.id }}">
                                         Show in charts
                                     </label>
                                 </div>
+                                <hr class="my-2">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input visibility-toggle" type="checkbox"
                                            id="visible-{{ company.id }}"
                                            data-company-id="{{ company.id }}"
                                            {% if game.is_analytics_visible_for_company(company.id) %}checked{% endif %}>
                                     <label class="form-check-label" for="visible-{{ company.id }}">
-                                        <small>Player can view</small>
+                                        <small><i class="bi bi-eye"></i> Player can view analytics</small>
                                     </label>
                                 </div>
                             </div>
@@ -211,6 +228,9 @@ function createChart(canvasId, label, analyticsData, metricKey) {
 async function updateCharts() {
     const analyticsData = await fetchAnalytics();
 
+    // Update color indicators for company cards
+    updateCompanyCardColors(analyticsData);
+
     // Update each chart
     for (const [chartKey, chart] of Object.entries(charts)) {
         // Get metric key from chart dataset label
@@ -240,6 +260,43 @@ async function updateCharts() {
         });
 
         chart.update();
+    }
+
+    // Update selected count
+    updateSelectedCount();
+}
+
+function updateCompanyCardColors(analyticsData) {
+    // Reset all cards
+    document.querySelectorAll('.company-card').forEach(card => {
+        card.style.borderLeftColor = 'transparent';
+        const indicator = card.querySelector('.chart-color-indicator');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    });
+
+    // Apply colors to selected companies
+    Object.entries(analyticsData).forEach(([companyId, companyData], index) => {
+        const color = colors[index % colors.length];
+        const card = document.getElementById(`card-${companyId}`);
+        const indicator = card?.querySelector('.chart-color-indicator');
+
+        if (card) {
+            card.style.borderLeftColor = color;
+        }
+        if (indicator) {
+            indicator.style.backgroundColor = color;
+            indicator.style.display = 'inline-block';
+        }
+    });
+}
+
+function updateSelectedCount() {
+    const count = selectedCompanies.size;
+    const badge = document.getElementById('selectedCount');
+    if (badge) {
+        badge.textContent = `${count} company${count !== 1 ? 'ies' : ''} selected`;
     }
 }
 
@@ -274,6 +331,38 @@ document.querySelectorAll('.visibility-toggle').forEach(checkbox => {
     });
 });
 
+// Select All button
+document.getElementById('selectAllBtn').addEventListener('click', function() {
+    selectedCompanies.clear();
+    document.querySelectorAll('.company-toggle').forEach(checkbox => {
+        checkbox.checked = true;
+        selectedCompanies.add(parseInt(checkbox.dataset.companyId));
+    });
+    updateCharts();
+});
+
+// Deselect All button
+document.getElementById('deselectAllBtn').addEventListener('click', function() {
+    selectedCompanies.clear();
+    document.querySelectorAll('.company-toggle').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    // Clear charts
+    for (const chart of Object.values(charts)) {
+        chart.data.datasets = [];
+        chart.update();
+    }
+    // Reset card colors
+    document.querySelectorAll('.company-card').forEach(card => {
+        card.style.borderLeftColor = 'transparent';
+        const indicator = card.querySelector('.chart-color-indicator');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    });
+    updateSelectedCount();
+});
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     if (selectedCompanies.size > 0) {
@@ -286,6 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         initCharts();
     }
+    updateSelectedCount();
 });
 </script>
 {% endblock %}
