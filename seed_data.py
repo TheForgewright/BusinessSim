@@ -3,7 +3,7 @@ Seed Database with Initial Data
 Creates facility templates and sample tags
 """
 from app import create_app, db
-from app.models import FacilityTemplate, Tag, Player, Game
+from app.models import FacilityTemplate, Tag, Player, Game, Company, StockOwnership
 from werkzeug.security import generate_password_hash
 
 def create_facility_templates():
@@ -178,6 +178,95 @@ def create_sample_tags(game_id):
     db.session.commit()
 
 
+def create_demo_companies(game_id, students):
+    """Create demo companies for students"""
+    from config import config
+    cfg = config['default']
+
+    company_names = ['TechCorp Industries', 'Innovation Labs', 'Global Solutions Inc']
+
+    for i, (student, name) in enumerate(zip(students, company_names)):
+        company = Company.query.filter_by(name=name, game_id=game_id).first()
+        if not company:
+            company = Company(
+                game_id=game_id,
+                owner_id=student.id,
+                name=name,
+                cash=cfg.STARTING_CASH,
+                goods_active=cfg.STARTING_GOODS,
+                ip_active=cfg.STARTING_IP,
+                influence_active=cfg.STARTING_INFLUENCE,
+                labor_active=cfg.STARTING_LABOR,
+                total_shares=cfg.STARTING_SHARES
+            )
+            db.session.add(company)
+            db.session.flush()  # Get the company ID
+            print(f"  ✓ Created company: {name}")
+
+            # Create initial stock ownership
+            ownership = StockOwnership(
+                company_id=company.id,
+                player_id=student.id,
+                investor_name=student.username,
+                shares_owned=cfg.STARTING_SHARES,
+                is_npc=False
+            )
+            db.session.add(ownership)
+
+    db.session.commit()
+
+
+def build_demo_facilities(game):
+    """Build some demo facilities for companies"""
+    from app.game_engine import construction
+    from config import config
+    cfg = config['default']
+
+    companies = Company.query.filter_by(game_id=game.id).all()
+    templates = FacilityTemplate.query.all()
+
+    # Get specific templates
+    rd_lab = next((t for t in templates if 'R&D Lab' in t.name), None)
+    sales_team = next((t for t in templates if 'Sales Team' in t.name), None)
+    factory = next((t for t in templates if 'Factory' in t.name), None)
+
+    for i, company in enumerate(companies):
+        # Build different facilities for each company
+        if i == 0 and rd_lab:
+            construction.start_facility_construction(company, rd_lab, f"{company.name} R&D Lab", game.current_week, cfg)
+            print(f"  ✓ Started R&D Lab construction for {company.name}")
+        elif i == 1 and sales_team:
+            construction.start_facility_construction(company, sales_team, f"{company.name} Sales Team", game.current_week, cfg)
+            print(f"  ✓ Started Sales Team construction for {company.name}")
+        elif i == 2 and factory:
+            construction.start_facility_construction(company, factory, f"{company.name} Factory", game.current_week, cfg)
+            print(f"  ✓ Started Factory construction for {company.name}")
+
+    db.session.commit()
+
+
+def advance_demo_game(game):
+    """Advance the demo game by several weeks to generate analytics data"""
+    from app.game_engine import turn_processor
+    from config import config
+    cfg = config['default']
+
+    # Advance by 5 weeks to generate some historical data
+    weeks_to_advance = 5
+    print(f"  Advancing game by {weeks_to_advance} weeks...")
+
+    for week in range(weeks_to_advance):
+        result = turn_processor.process_weekly_turn(game, cfg)
+        if result['success']:
+            print(f"    ✓ Week {game.current_week} processed")
+        else:
+            print(f"    ✗ Error processing week {week + 1}")
+
+    db.session.commit()
+    print(f"  ✓ Game advanced to week {game.current_week}")
+    print(f"  ✓ Analytics data generated for {game.current_week} weeks")
+
+
 def create_demo_data():
     """Create demo professor, game, and student"""
 
@@ -194,19 +283,41 @@ def create_demo_data():
     else:
         print("  - Professor account already exists")
 
-    # Create demo student
-    student = Player.query.filter_by(username='student').first()
-    if not student:
-        student = Player(
+    # Create demo students
+    student1 = Player.query.filter_by(username='student').first()
+    if not student1:
+        student1 = Player(
             username='student',
             password_hash=generate_password_hash('password'),
             is_professor=False,
             personal_cash=1000.0
         )
-        db.session.add(student)
+        db.session.add(student1)
         print("  ✓ Created demo student (username: student, password: password)")
     else:
         print("  - Student account already exists")
+
+    student2 = Player.query.filter_by(username='alice').first()
+    if not student2:
+        student2 = Player(
+            username='alice',
+            password_hash=generate_password_hash('password'),
+            is_professor=False,
+            personal_cash=1000.0
+        )
+        db.session.add(student2)
+        print("  ✓ Created demo student (username: alice, password: password)")
+
+    student3 = Player.query.filter_by(username='bob').first()
+    if not student3:
+        student3 = Player(
+            username='bob',
+            password_hash=generate_password_hash('password'),
+            is_professor=False,
+            personal_cash=1000.0
+        )
+        db.session.add(student3)
+        print("  ✓ Created demo student (username: bob, password: password)")
 
     db.session.commit()
 
@@ -227,6 +338,18 @@ def create_demo_data():
         # Create tags for demo game
         print("\nCreating tags for demo game...")
         create_sample_tags(game.id)
+
+        # Create demo companies
+        print("\n3. Creating demo companies...")
+        create_demo_companies(game.id, [student1, student2, student3])
+
+        # Build some facilities
+        print("\n4. Building demo facilities...")
+        build_demo_facilities(game)
+
+        # Advance game to generate analytics data
+        print("\n5. Advancing game to generate analytics data...")
+        advance_demo_game(game)
     else:
         print("  - Demo game already exists")
 
@@ -251,7 +374,13 @@ def main():
         print("=" * 60)
         print("\nDemo Accounts:")
         print("  Professor - username: professor, password: password")
-        print("  Student   - username: student, password: password")
+        print("  Students:")
+        print("    - username: student, password: password (TechCorp Industries)")
+        print("    - username: alice, password: password (Innovation Labs)")
+        print("    - username: bob, password: password (Global Solutions Inc)")
+        print("\nDemo Game:")
+        print("  - Game advanced to week 5 with analytics data")
+        print("  - Each company has a facility under construction or completed")
         print("\nYou can now run the server with: python run.py")
         print("=" * 60)
 

@@ -123,12 +123,41 @@ const companyId = {{ company.id }};
 async function initCharts() {
     const analyticsData = await fetchAnalytics();
 
+    // Check if there's any data
+    if (!analyticsData || !analyticsData.weeks || analyticsData.weeks.length === 0) {
+        showEmptyState();
+        return;
+    }
+
+    hideEmptyState();
+
     createChart('equityChart', 'Equity ($)', analyticsData, 'equity', '#3b82f6');
     createChart('cashChart', 'Cash ($)', analyticsData, 'cash', '#10b981');
     createChart('debtChart', 'Debt ($)', analyticsData, 'debt', '#ef4444');
     createChart('depreciationChart', 'Depreciation (%)', analyticsData, 'depreciation', '#f59e0b');
     createChart('salesRevenueChart', 'Revenue ($)', analyticsData, 'sales_revenue', '#8b5cf6');
     createChart('salesProfitChart', 'Profit ($)', analyticsData, 'sales_profit', '#ec4899');
+}
+
+function showEmptyState() {
+    const chartsContainer = document.querySelectorAll('.card canvas');
+    chartsContainer.forEach(canvas => {
+        const cardBody = canvas.closest('.card-body');
+        if (cardBody && !cardBody.querySelector('.empty-state')) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state alert alert-warning text-center';
+            emptyDiv.innerHTML = '<strong>No Data Available</strong><br><small>No historical data has been recorded yet. Data will appear after the professor advances the game.</small>';
+            cardBody.appendChild(emptyDiv);
+            canvas.style.display = 'none';
+        }
+    });
+}
+
+function hideEmptyState() {
+    document.querySelectorAll('.empty-state').forEach(el => el.remove());
+    document.querySelectorAll('.card canvas').forEach(canvas => {
+        canvas.style.display = 'block';
+    });
 }
 
 async function fetchAnalytics() {

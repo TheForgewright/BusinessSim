@@ -157,12 +157,49 @@ const colors = [
 async function initCharts() {
     const analyticsData = await fetchAnalytics();
 
+    // Check if there's any data
+    if (Object.keys(analyticsData).length === 0) {
+        showEmptyState();
+        return;
+    }
+
+    // Check if the first company has any week data
+    const firstCompany = Object.values(analyticsData)[0];
+    if (!firstCompany || !firstCompany.data.weeks || firstCompany.data.weeks.length === 0) {
+        showEmptyState();
+        return;
+    }
+
+    hideEmptyState();
+
     charts.equity = createChart('equityChart', 'Equity', analyticsData, 'equity');
     charts.cash = createChart('cashChart', 'Cash', analyticsData, 'cash');
     charts.debt = createChart('debtChart', 'Debt', analyticsData, 'debt');
     charts.depreciation = createChart('depreciationChart', 'Depreciation', analyticsData, 'depreciation');
     charts.salesRevenue = createChart('salesRevenueChart', 'Revenue', analyticsData, 'sales_revenue');
     charts.salesProfit = createChart('salesProfitChart', 'Profit', analyticsData, 'sales_profit');
+}
+
+function showEmptyState() {
+    const chartsContainer = document.querySelectorAll('.card canvas');
+    chartsContainer.forEach(canvas => {
+        const card = canvas.closest('.card');
+        const cardBody = canvas.closest('.card-body');
+        if (cardBody && !cardBody.querySelector('.empty-state')) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state alert alert-warning text-center';
+            emptyDiv.innerHTML = '<strong>No Data Available</strong><br><small>Advance the game by at least one week to generate analytics data.</small>';
+            cardBody.appendChild(emptyDiv);
+            canvas.style.display = 'none';
+        }
+    });
+}
+
+function hideEmptyState() {
+    document.querySelectorAll('.empty-state').forEach(el => el.remove());
+    document.querySelectorAll('.card canvas').forEach(canvas => {
+        canvas.style.display = 'block';
+    });
 }
 
 async function fetchAnalytics() {
