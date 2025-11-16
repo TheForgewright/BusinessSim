@@ -60,7 +60,14 @@ def advance_game(game_id):
     result = turn_processor.advance_turns(game, weeks, cfg)
 
     if result['success']:
-        flash(f"Advanced {weeks} week(s) to week {game.current_week}", 'success')
+        # Autosave after successful turn advancement
+        from app.game_engine import save_restore
+        save_result = save_restore.save_game(game_id, auto=True)
+
+        if save_result['success']:
+            flash(f"Advanced {weeks} week(s) to week {game.current_week} (Autosaved: {save_result['filename']})", 'success')
+        else:
+            flash(f"Advanced {weeks} week(s) to week {game.current_week} (Warning: Autosave failed)", 'warning')
     else:
         flash(f"Error: {result['message']}", 'error')
 
@@ -143,3 +150,90 @@ def manage_tags(game_id):
     tags = Tag.query.filter_by(game_id=game_id).all()
 
     return render_template('professor/manage_tags.html', game=game, tags=tags)
+
+
+@bp.route('/game/<int:game_id>/saves')
+def manage_saves(game_id):
+    """Manage save files for game"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    game = Game.query.get_or_404(game_id)
+
+    from app.game_engine import save_restore
+    saves = save_restore.list_saves(game_id)
+
+    return render_template('professor/manage_saves.html', game=game, saves=saves)
+
+
+@bp.route('/game/<int:game_id>/save', methods=['POST'])
+def manual_save(game_id):
+    """Manually save game"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    game = Game.query.get_or_404(game_id)
+    save_name = request.form.get('save_name', '')
+
+    from app.game_engine import save_restore
+    result = save_restore.save_game(game_id, save_name=save_name, auto=False)
+
+    if result['success']:
+        flash(f"Game saved: {result['filename']}", 'success')
+    else:
+        flash(f"Save failed: {result['message']}", 'error')
+
+    return redirect(url_for('professor.manage_saves', game_id=game_id))
+
+
+@bp.route('/game/restore', methods=['POST'])
+def restore_game():
+    """Restore game from save file"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    filepath = request.form.get('filepath')
+
+    if not filepath:
+        flash('No save file selected', 'error')
+        return redirect(url_for('professor.dashboard'))
+
+    from app.game_engine import save_restore
+    result = save_restore.restore_game(filepath)
+
+    if result['success']:
+        msg = result['message']
+        if result['warnings']:
+            msg += ' Warnings: ' + ', '.join(result['warnings'])
+        flash(msg, 'success' if not result['warnings'] else 'warning')
+        return redirect(url_for('professor.game_view', game_id=result['game_id']))
+    else:
+        flash(f"Restore failed: {result['message']}", 'error')
+        return redirect(url_for('professor.dashboard'))
+
+
+@bp.route('/game/save/delete', methods=['POST'])
+def delete_save():
+    """Delete a save file"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    filepath = request.form.get('filepath')
+    game_id = request.form.get('game_id', type=int)
+
+    from app.game_engine import save_restore
+    result = save_restore.delete_save(filepath)
+
+    if result['success']:
+        flash('Save file deleted', 'success')
+    else:
+        flash(f"Delete failed: {result['message']}", 'error')
+
+    if game_id:
+        return redirect(url_for('professor.manage_saves', game_id=game_id))
+    else:
+        return redirect(url_for('professor.dashboard'))

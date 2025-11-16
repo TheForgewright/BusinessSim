@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Saves - {{ game.name }}{% endblock %}
+
+{% block content %}
+<h1>Manage Save Files</h1>
+<p class="lead">Game: {{ game.name }} (Current Week: {{ game.current_week }})</p>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Create Manual Save</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('professor.manual_save', game_id=game.id) }}" class="row g-3 align-items-end">
+                    <div class="col-auto">
+                        <label for="save_name" class="form-label">Save Name (optional):</label>
+                        <input type="text" class="form-control" id="save_name" name="save_name" placeholder="e.g., Before Market Crash">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-success">Save Now</button>
+                    </div>
+                    <div class="col-auto">
+                        <small class="text-muted">Creates a manual save you can restore later</small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Available Save Files</h5>
+                <a href="{{ url_for('professor.game_view', game_id=game.id) }}" class="btn btn-secondary btn-sm">Back to Game</a>
+            </div>
+            <div class="card-body">
+                {% if saves %}
+                    <div class="alert alert-info">
+                        <strong>Note:</strong> Restoring a save will overwrite the current game state. All progress after the save point will be lost.
+                    </div>
+
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Week</th>
+                                <th>Saved At</th>
+                                <th>File Size</th>
+                                <th>Filename</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for save in saves %}
+                            <tr>
+                                <td>
+                                    {% if save.save_type == 'Auto' %}
+                                        <span class="badge bg-primary">Auto</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Manual</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if save.metadata.current_week is defined %}
+                                        Week {{ save.metadata.current_week }}
+                                    {% else %}
+                                        Unknown
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ save.metadata.saved_at if save.metadata.saved_at else save.modified_time }}</small>
+                                </td>
+                                <td>
+                                    {{ (save.file_size / 1024) | round(1) }} KB
+                                </td>
+                                <td>
+                                    <small><code>{{ save.filename }}</code></small>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" onclick="confirmRestore('{{ save.filepath }}', {{ save.metadata.current_week if save.metadata.current_week else 0 }})">
+                                        Restore
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="confirmDelete('{{ save.filepath }}', '{{ save.filename }}')">
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <div class="alert alert-warning mt-3">
+                        <strong>Auto-saves:</strong> Created automatically after each turn advancement. Keep recent ones for recovery.
+                        <br>
+                        <strong>Manual saves:</strong> Created when you click "Save Now". Use before risky events or important decisions.
+                    </div>
+                {% else %}
+                    <p class="text-muted">No save files found for this game.</p>
+                    <p>Auto-saves are created automatically when you advance the game. Create a manual save using the form above.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Confirmation Modal -->
+<div class="modal fade" id="restoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title">Confirm Restore</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Warning:</strong> This will restore the game to Week <span id="restore-week"></span>.</p>
+                <p>All current progress will be lost. This action cannot be undone!</p>
+                <p>Are you sure you want to continue?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="restore-form" method="POST" action="{{ url_for('professor.restore_game') }}" style="display: inline;">
+                    <input type="hidden" name="filepath" id="restore-filepath">
+                    <button type="submit" class="btn btn-warning">Yes, Restore Game</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this save file?</p>
+                <p><code id="delete-filename"></code></p>
+                <p>This action cannot be undone!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="delete-form" method="POST" action="{{ url_for('professor.delete_save') }}" style="display: inline;">
+                    <input type="hidden" name="filepath" id="delete-filepath">
+                    <input type="hidden" name="game_id" value="{{ game.id }}">
+                    <button type="submit" class="btn btn-danger">Yes, Delete Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmRestore(filepath, week) {
+    document.getElementById('restore-filepath').value = filepath;
+    document.getElementById('restore-week').textContent = week;
+    new bootstrap.Modal(document.getElementById('restoreModal')).show();
+}
+
+function confirmDelete(filepath, filename) {
+    document.getElementById('delete-filepath').value = filepath;
+    document.getElementById('delete-filename').textContent = filename;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %}

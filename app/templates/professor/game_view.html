@@ -82,6 +82,12 @@
             <div class="card-body">
                 <ul class="list-group">
                     <li class="list-group-item">
+                        <a href="{{ url_for('professor.manage_saves', game_id=game.id) }}">
+                            <strong>💾 Manage Saves</strong>
+                        </a>
+                        <br><small class="text-muted">Save/restore game, view autosaves</small>
+                    </li>
+                    <li class="list-group-item">
                         <a href="{{ url_for('professor.manage_tags', game_id=game.id) }}">Manage Product Tags</a>
                     </li>
                     <li class="list-group-item">

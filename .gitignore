@@ -29,6 +29,9 @@ env/
 data/*.db
 data/*.db-journal
 
+# Save Files
+data/saves/
+
 # IDE
 .vscode/
 .idea/
