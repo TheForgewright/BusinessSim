@@ -1,0 +1,111 @@
+/* Business Simulation Game - Custom Styles */
+
+body {
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+.card {
+    margin-bottom: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: bold;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.badge {
+    font-size: 0.85rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Capital display */
+.capital-display {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    margin: 0.25rem;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.capital-goods { background-color: #d1ecf1; color: #0c5460; }
+.capital-ip { background-color: #f8d7da; color: #721c24; }
+.capital-influence { background-color: #fff3cd; color: #856404; }
+.capital-labor { background-color: #d4edda; color: #155724; }
+.capital-cash { background-color: #d1e7dd; color: #0f5132; }
+
+/* Facility status */
+.facility-active {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.facility-shutdown {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.facility-condition-good {
+    color: #28a745;
+}
+
+.facility-condition-fair {
+    color: #ffc107;
+}
+
+.facility-condition-poor {
+    color: #dc3545;
+}
+
+/* Stock price changes */
+.price-up {
+    color: #28a745;
+}
+
+.price-down {
+    color: #dc3545;
+}
+
+.price-unchanged {
+    color: #6c757d;
+}
+
+/* Dashboard cards */
+.dashboard-stat {
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.dashboard-stat h3 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.dashboard-stat p {
+    color: #6c757d;
+    margin-bottom: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+
+    .card {
+        margin-bottom: 1rem;
+    }
+}

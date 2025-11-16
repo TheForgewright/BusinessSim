@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Facility Templates{% endblock %}
+
+{% block content %}
+<h1>Facility Templates</h1>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Available Facility Templates</h5>
+    </div>
+    <div class="card-body">
+        {% if templates %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Build Time</th>
+                        <th>Operating Cost</th>
+                        <th>Link Capacity</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for template in templates %}
+                    <tr>
+                        <td><strong>{{ template.name }}</strong></td>
+                        <td>
+                            <span class="badge bg-{{ 'primary' if template.facility_type == 'physical' else 'success' }}">
+                                {{ template.facility_type }}
+                            </span>
+                        </td>
+                        <td>{{ template.build_time_weeks }} weeks</td>
+                        <td>${{ "%.2f"|format(template.weekly_operating_cost) }}/week</td>
+                        <td>{{ template.link_capacity }}</td>
+                        <td>{{ template.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No facility templates. Run seed_data.py to create initial templates.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

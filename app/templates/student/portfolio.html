@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Portfolio{% endblock %}
+
+{% block content %}
+<h1>Stock Portfolio</h1>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h6>Personal Cash</h6>
+            </div>
+            <div class="card-body text-center">
+                <h3>${{ "%.2f"|format(player.personal_cash) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6>Portfolio Value</h6>
+            </div>
+            <div class="card-body text-center">
+                <h3>${{ "%.2f"|format(wealth.portfolio_value) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h6>Total Wealth</h6>
+            </div>
+            <div class="card-body text-center">
+                <h3>${{ "%.2f"|format(wealth.total_wealth) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Your Holdings</h5>
+    </div>
+    <div class="card-body">
+        {% if wealth.holdings %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Company</th>
+                        <th>Shares</th>
+                        <th>Price/Share</th>
+                        <th>Total Value</th>
+                        <th>% of Portfolio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for holding in wealth.holdings %}
+                    <tr>
+                        <td>{{ holding.company_name }}</td>
+                        <td>{{ holding.shares }}</td>
+                        <td>${{ "%.2f"|format(holding.price_per_share) }}</td>
+                        <td>${{ "%.2f"|format(holding.total_value) }}</td>
+                        <td>{{ "%.1f"|format((holding.total_value / wealth.portfolio_value * 100) if wealth.portfolio_value > 0 else 0) }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>You don't own any stock yet.</p>
+            <a href="{{ url_for('student.market') }}" class="btn btn-primary">Visit Stock Market</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

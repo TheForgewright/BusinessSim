@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}About - Business Simulation Game{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>About Business Simulation Game</h1>
+
+        <p class="lead">
+            A comprehensive web-based business simulation and economic game designed for classroom use.
+        </p>
+
+        <h3>Game Overview</h3>
+        <p>
+            Students manage companies, invest in stocks, and compete for the highest final score over a predetermined number of turns.
+            The game features complex economic mechanics including facility management, capital generation, stock markets, and debt management.
+        </p>
+
+        <h3>Core Mechanics</h3>
+        <ul>
+            <li><strong>Capital System:</strong> Manage 4 types of capital (Goods, IP, Influence, Labor) plus Cash</li>
+            <li><strong>Facilities:</strong> Build physical and personnel facilities to generate capital</li>
+            <li><strong>Weekly Turns:</strong> 29-phase turn processing with depreciation, maintenance, and generation</li>
+            <li><strong>Stock Market:</strong> Dynamic pricing based on company equity and performance</li>
+            <li><strong>Debt Management:</strong> Take loans with interest accrual, compounding, and auto-pay</li>
+            <li><strong>Product Tagging:</strong> Create products with market positioning tags</li>
+            <li><strong>Market Competition:</strong> Compete based on product overlap and saturation</li>
+        </ul>
+
+        <h3>Winning</h3>
+        <p>
+            Final Score = Company Equity + Personal Cash
+        </p>
+        <p>
+            The student with the highest final score at game end wins!
+        </p>
+    </div>
+</div>
+{% endblock %}

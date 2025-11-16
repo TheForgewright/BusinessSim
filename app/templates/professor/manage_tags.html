@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Tags - {{ game.name }}{% endblock %}
+
+{% block content %}
+<h1>Product Tags</h1>
+<p class="lead">Game: {{ game.name }}</p>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Available Tags</h5>
+    </div>
+    <div class="card-body">
+        {% if tags %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Tag Name</th>
+                        <th>Demand Multiplier</th>
+                        <th>Profit Margin</th>
+                        <th>Strategy</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tag in tags %}
+                    <tr>
+                        <td><strong>{{ tag.name }}</strong></td>
+                        <td>{{ "%.1fx"|format(tag.demand_multiplier) }}</td>
+                        <td>{{ "%.1fx"|format(tag.profit_margin) }}</td>
+                        <td>
+                            {% if tag.demand_multiplier > 1.5 %}
+                                <span class="badge bg-primary">Volume Play</span>
+                            {% elif tag.profit_margin > 1.5 %}
+                                <span class="badge bg-success">Margin Play</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Balanced</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ tag.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No tags configured for this game.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

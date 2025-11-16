@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Professor Dashboard{% endblock %}
+
+{% block content %}
+<h1>Professor Dashboard</h1>
+<p class="lead">Game Management & Control</p>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Active Games</h5>
+                <a href="{{ url_for('professor.create_game') }}" class="btn btn-success">Create New Game</a>
+            </div>
+            <div class="card-body">
+                {% if games %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Game Name</th>
+                                <th>Current Week</th>
+                                <th>Total Weeks</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for game in games %}
+                            <tr>
+                                <td>{{ game.name }}</td>
+                                <td>Week {{ game.current_week }}</td>
+                                <td>{{ game.total_weeks }}</td>
+                                <td>
+                                    {% if game.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('professor.game_view', game_id=game.id) }}" class="btn btn-sm btn-primary">View</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No games created yet.</p>
+                    <a href="{{ url_for('professor.create_game') }}" class="btn btn-success">Create First Game</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    <li class="list-group-item">
+                        <a href="{{ url_for('professor.facility_templates') }}">Manage Facility Templates</a>
+                    </li>
+                    <li class="list-group-item">
+                        <a href="#">View All Players</a>
+                    </li>
+                    <li class="list-group-item">
+                        <a href="#">System Settings</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Documentation</h5>
+            </div>
+            <div class="card-body">
+                <p>Game mechanics and features:</p>
+                <ul>
+                    <li>29-phase weekly turn processing</li>
+                    <li>Facility depreciation & maintenance</li>
+                    <li>Capital generation system</li>
+                    <li>Stock market dynamics</li>
+                    <li>Debt management with auto-pay</li>
+                    <li>Product tagging & market saturation</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

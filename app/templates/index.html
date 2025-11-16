@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome - Business Simulation Game{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-body text-center p-5">
+                <h1 class="display-4 mb-4">Business Simulation Game</h1>
+                <p class="lead">A comprehensive business and economic simulation for classroom use</p>
+
+                <hr class="my-4">
+
+                <div class="row mt-5">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h3>Students</h3>
+                                <p>Manage companies, invest in stocks, and compete for the highest final score</p>
+                                <a href="/auth/login" class="btn btn-primary btn-lg">Student Login</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h3>Professors</h3>
+                                <p>Create games, control time advancement, and manage market events</p>
+                                <a href="/auth/login?professor=1" class="btn btn-success btn-lg">Professor Login</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <small class="text-muted">
+                        New user? <a href="/auth/register">Register here</a>
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-body">
+                <h4>Game Features</h4>
+                <ul class="list-unstyled">
+                    <li>✓ Facility management (physical & personnel)</li>
+                    <li>✓ Capital generation system (Goods, IP, Influence, Labor, Cash)</li>
+                    <li>✓ Stock market with dynamic pricing</li>
+                    <li>✓ Debt management with interest and auto-pay</li>
+                    <li>✓ Product creation with market positioning tags</li>
+                    <li>✓ Market saturation and competition mechanics</li>
+                    <li>✓ 29-phase weekly turn processing</li>
+                    <li>✓ Professor-controlled events and scenarios</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Create Company{% endblock %}
+
+{% block content %}
+<h1>Create New Company</h1>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Company Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="game_id" class="form-label">Select Game</label>
+                        <select class="form-select" id="game_id" name="game_id" required>
+                            <option value="">-- Select a game --</option>
+                            {% for game in games %}
+                                <option value="{{ game.id }}">{{ game.name }} (Week {{ game.current_week }}/{{ game.total_weeks }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Company Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Starting Resources:</strong>
+                        <ul>
+                            <li>Cash: $5,000</li>
+                            <li>Total Shares: 1,000 (you own 100%)</li>
+                            <li>Capital: 0 (you'll need to build facilities to generate capital)</li>
+                        </ul>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100">Create Company</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

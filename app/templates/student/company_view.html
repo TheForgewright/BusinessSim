@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}{{ company.name }} - Company View{% endblock %}
+
+{% block content %}
+<h1>{{ company.name }}</h1>
+<p class="lead">Week {{ company.game.current_week }} / {{ company.game.total_weeks }}</p>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h6>Cash</h6>
+            </div>
+            <div class="card-body text-center">
+                <h3>${{ "%.2f"|format(company.cash) }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h6>Equity</h6>
+            </div>
+            <div class="card-body text-center">
+                <h3>${{ "%.2f"|format(company.current_equity) }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6>Stock Price</h6>
+            </div>
+            <div class="card-body text-center">
+                <h3>${{ "%.2f"|format(company.stock_price) }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <h6>Total Shares</h6>
+            </div>
+            <div class="card-body text-center">
+                <h3>{{ company.total_shares }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Capital Inventory</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Active</th>
+                            <th>Backed Up</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Goods</strong></td>
+                            <td>{{ "%.1f"|format(company.goods_active) }}</td>
+                            <td>{{ "%.1f"|format(company.goods_backed_up) }}</td>
+                            <td>{{ "%.1f"|format(company.goods_active + company.goods_backed_up) }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>IP</strong></td>
+                            <td>{{ "%.1f"|format(company.ip_active) }}</td>
+                            <td>{{ "%.1f"|format(company.ip_backed_up) }}</td>
+                            <td>{{ "%.1f"|format(company.ip_active + company.ip_backed_up) }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Influence</strong></td>
+                            <td>{{ "%.1f"|format(company.influence_active) }}</td>
+                            <td>{{ "%.1f"|format(company.influence_backed_up) }}</td>
+                            <td>{{ "%.1f"|format(company.influence_active + company.influence_backed_up) }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Labor</strong></td>
+                            <td>{{ "%.1f"|format(company.labor_active) }}</td>
+                            <td>{{ "%.1f"|format(company.labor_backed_up) }}</td>
+                            <td>{{ "%.1f"|format(company.labor_active + company.labor_backed_up) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Weekly Focus</h5>
+            </div>
+            <div class="card-body">
+                <p>Current Focus: <strong>{{ company.weekly_focus or 'Not Set' }}</strong></p>
+                <form method="POST" action="{{ url_for('student.set_focus', company_id=company.id) }}">
+                    <select class="form-select" name="focus" required>
+                        <option value="">-- Select Focus --</option>
+                        <option value="Goods" {% if company.weekly_focus == 'Goods' %}selected{% endif %}>Goods</option>
+                        <option value="IP" {% if company.weekly_focus == 'IP' %}selected{% endif %}>IP</option>
+                        <option value="Influence" {% if company.weekly_focus == 'Influence' %}selected{% endif %}>Influence</option>
+                        <option value="Labor" {% if company.weekly_focus == 'Labor' %}selected{% endif %}>Labor</option>
+                        <option value="Cash" {% if company.weekly_focus == 'Cash' %}selected{% endif %}>Cash</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary mt-2">Set Focus</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Facilities</h5>
+            </div>
+            <div class="card-body">
+                {% if company.facilities %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Condition</th>
+                                <th>Maintenance Due</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for facility in company.facilities %}
+                            <tr>
+                                <td>{{ facility.name }}</td>
+                                <td>{{ facility.template.facility_type }}</td>
+                                <td>
+                                    {% if facility.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Shutdown</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ "%.1f"|format(facility.condition) }}%</td>
+                                <td>{{ facility.weeks_until_maintenance }} weeks</td>
+                                <td>
+                                    {% if facility.is_active %}
+                                        <button class="btn btn-sm btn-warning" onclick="shutdownFacility({{ facility.id }})">Shutdown</button>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-success" onclick="activateFacility({{ facility.id }})">Activate</button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No facilities yet. Build your first facility to start generating capital!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Debts</h5>
+            </div>
+            <div class="card-body">
+                {% if company.debts %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Principal</th>
+                                <th>Interest</th>
+                                <th>Total Owed</th>
+                                <th>Interest Rate</th>
+                                <th>Due Date</th>
+                                <th>Auto-Pay</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for debt in company.debts %}
+                                {% if not debt.resolved %}
+                                <tr>
+                                    <td>{{ debt.name }}</td>
+                                    <td>${{ "%.2f"|format(debt.principal) }}</td>
+                                    <td>${{ "%.2f"|format(debt.accrued_interest) }}</td>
+                                    <td>${{ "%.2f"|format(debt.principal + debt.accrued_interest) }}</td>
+                                    <td>{{ "%.1f"|format(debt.interest_rate) }}%</td>
+                                    <td>
+                                        {% if debt.due_date %}
+                                            Week {{ debt.due_date }}
+                                        {% else %}
+                                            No due date
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if debt.auto_pay %}
+                                            <span class="badge bg-success">On</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Off</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No debts</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

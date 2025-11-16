@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<h1>Student Dashboard</h1>
+<p class="lead">Welcome, {{ player.username }}!</p>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5>Your Wealth</h5>
+            </div>
+            <div class="card-body">
+                <h3>${{ "%.2f"|format(wealth.total_wealth) }}</h3>
+                <hr>
+                <p><strong>Personal Cash:</strong> ${{ "%.2f"|format(wealth.personal_cash) }}</p>
+                <p><strong>Portfolio Value:</strong> ${{ "%.2f"|format(wealth.portfolio_value) }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Your Companies</h5>
+            </div>
+            <div class="card-body">
+                {% if companies %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Company</th>
+                                <th>Cash</th>
+                                <th>Equity</th>
+                                <th>Stock Price</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for company in companies %}
+                            <tr>
+                                <td>{{ company.name }}</td>
+                                <td>${{ "%.2f"|format(company.cash) }}</td>
+                                <td>${{ "%.2f"|format(company.current_equity) }}</td>
+                                <td>${{ "%.2f"|format(company.stock_price) }}</td>
+                                <td>
+                                    <a href="{{ url_for('student.company_view', company_id=company.id) }}" class="btn btn-sm btn-primary">View</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>You don't have any companies yet.</p>
+                    <a href="{{ url_for('student.create_company') }}" class="btn btn-success">Create Company</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Stock Portfolio</h5>
+            </div>
+            <div class="card-body">
+                {% if wealth.holdings %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Company</th>
+                                <th>Shares</th>
+                                <th>Price/Share</th>
+                                <th>Total Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for holding in wealth.holdings %}
+                            <tr>
+                                <td>{{ holding.company_name }}</td>
+                                <td>{{ holding.shares }}</td>
+                                <td>${{ "%.2f"|format(holding.price_per_share) }}</td>
+                                <td>${{ "%.2f"|format(holding.total_value) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>You don't own any stock yet.</p>
+                    <a href="{{ url_for('student.market') }}" class="btn btn-primary">Visit Stock Market</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

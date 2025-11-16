@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Create Game{% endblock %}
+
+{% block content %}
+<h1>Create New Game</h1>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Game Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Game Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="total_weeks" class="form-label">Total Weeks</label>
+                        <input type="number" class="form-control" id="total_weeks" name="total_weeks" value="50" min="10" max="200">
+                        <small class="text-muted">How many weeks the game will last</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="max_turn_advancement" class="form-label">Max Turn Advancement</label>
+                        <input type="number" class="form-control" id="max_turn_advancement" name="max_turn_advancement" value="3" min="1" max="10">
+                        <small class="text-muted">Maximum weeks students can advance at once</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100">Create Game</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

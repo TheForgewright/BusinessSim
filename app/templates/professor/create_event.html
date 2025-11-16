@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Create Event{% endblock %}
+
+{% block content %}
+<h1>Create Market Event</h1>
+<p class="lead">Game: {{ game.name }}</p>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Event Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Event Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="event_type" class="form-label">Event Type</label>
+                        <select class="form-select" id="event_type" name="event_type" required>
+                            <option value="instant">Instant (one-time effect)</option>
+                            <option value="multi_week">Multi-week (ongoing effect)</option>
+                            <option value="warning">Warning (announcement before effect)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="severity" class="form-label">Severity</label>
+                        <select class="form-select" id="severity" name="severity" required>
+                            <option value="major_positive">Major Positive</option>
+                            <option value="major_negative">Major Negative</option>
+                            <option value="moderate_positive">Moderate Positive</option>
+                            <option value="moderate_negative">Moderate Negative</option>
+                            <option value="minor_positive">Minor Positive</option>
+                            <option value="minor_negative">Minor Negative</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="trigger_week" class="form-label">Trigger Week</label>
+                        <input type="number" class="form-control" id="trigger_week" name="trigger_week" min="0" value="{{ game.current_week + 1 }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="duration_weeks" class="form-label">Duration (weeks)</label>
+                        <input type="number" class="form-control" id="duration_weeks" name="duration_weeks" min="1" value="1">
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100">Create Event</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
