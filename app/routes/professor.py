@@ -3,10 +3,11 @@ Professor Routes
 Professor dashboard and administrative controls
 """
 from flask import Blueprint, render_template, session, redirect, url_for, flash, request, jsonify
-from app.models import Game, Company, Player, Event, Tag, FacilityTemplate
+from app.models import Game, Company, Player, Event, Tag, FacilityTemplate, EventEffect, Facility
 from app import db
 from app.game_engine import turn_processor
 from config import config
+import json
 
 bp = Blueprint('professor', __name__)
 
@@ -258,3 +259,131 @@ def analytics(game_id):
                           game=game,
                           companies=companies,
                           selected_companies=selected_companies)
+
+
+@bp.route('/game/<int:game_id>/event-effects')
+def event_effects_list(game_id):
+    """View and manage event effects for a game"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    game = Game.query.get_or_404(game_id)
+
+    # Get all events for this game
+    events = Event.query.filter_by(game_id=game_id).order_by(Event.trigger_week).all()
+
+    # Get all event effects for this game
+    event_effects = db.session.query(EventEffect).join(Event).filter(
+        Event.game_id == game_id
+    ).order_by(EventEffect.start_week).all()
+
+    # Get all companies and facilities for the dropdowns
+    companies = Company.query.filter_by(game_id=game_id).all()
+
+    return render_template('professor/event_effects.html',
+                          game=game,
+                          events=events,
+                          event_effects=event_effects,
+                          companies=companies)
+
+
+@bp.route('/game/<int:game_id>/event-effect/create', methods=['GET', 'POST'])
+def create_event_effect(game_id):
+    """Create a new event effect"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    game = Game.query.get_or_404(game_id)
+
+    if request.method == 'POST':
+        # Parse form data
+        event_id = request.form.get('event_id', type=int)
+        company_id = request.form.get('company_id', type=int) or None
+        facility_id = request.form.get('facility_id', type=int) or None
+        effect_type = request.form.get('effect_type')
+        start_week = request.form.get('start_week', type=int)
+        duration_weeks = request.form.get('duration_weeks', type=int)
+
+        # Parse effect data based on effect type
+        effect_data = {}
+        if effect_type == 'stat_modifier':
+            # Parse stat modifiers from form
+            stat_name = request.form.get('stat_name')
+            modifier_value = request.form.get('modifier_value', type=float)
+            if stat_name and modifier_value:
+                effect_data[stat_name] = modifier_value
+        elif effect_type == 'facility_depreciation':
+            amount = request.form.get('depreciation_amount', type=float)
+            effect_data['amount'] = amount
+        elif effect_type == 'capital_deletion':
+            capital_type = request.form.get('capital_type')
+            amount = request.form.get('capital_amount', type=float)
+            effect_data['capital_type'] = capital_type
+            effect_data['amount'] = amount
+        elif effect_type == 'facility_disable':
+            effect_data['duration_weeks'] = duration_weeks
+
+        # Create event effect
+        event_effect = EventEffect(
+            event_id=event_id,
+            company_id=company_id,
+            facility_id=facility_id,
+            effect_type=effect_type,
+            start_week=start_week,
+            duration_weeks=duration_weeks,
+            end_week=start_week + duration_weeks,
+            is_active=True,
+            is_expired=False
+        )
+        event_effect.set_effect_data(effect_data)
+
+        db.session.add(event_effect)
+        db.session.commit()
+
+        flash(f'Event effect created successfully!', 'success')
+        return redirect(url_for('professor.event_effects_list', game_id=game_id))
+
+    # GET request - show form
+    events = Event.query.filter_by(game_id=game_id).order_by(Event.name).all()
+    companies = Company.query.filter_by(game_id=game_id).order_by(Company.name).all()
+
+    return render_template('professor/create_event_effect.html',
+                          game=game,
+                          events=events,
+                          companies=companies)
+
+
+@bp.route('/event-effect/<int:effect_id>/delete', methods=['POST'])
+def delete_event_effect(effect_id):
+    """Delete an event effect"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    effect = EventEffect.query.get_or_404(effect_id)
+    game_id = effect.event.game_id
+
+    db.session.delete(effect)
+    db.session.commit()
+
+    flash('Event effect deleted successfully!', 'success')
+    return redirect(url_for('professor.event_effects_list', game_id=game_id))
+
+
+@bp.route('/api/game/<int:game_id>/facilities', methods=['GET'])
+def get_company_facilities(game_id):
+    """API endpoint to get facilities for a company"""
+    auth_check = require_professor()
+    if auth_check:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    company_id = request.args.get('company_id', type=int)
+    if not company_id:
+        return jsonify({'facilities': []})
+
+    facilities = Facility.query.filter_by(company_id=company_id).all()
+    return jsonify({
+        'facilities': [{'id': f.id, 'name': f.name} for f in facilities]
+    })

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Event Effects Management{% endblock %}
+
+{% block content %}
+<h1>Event Effects Management</h1>
+<p class="lead">Game: {{ game.name }} | Current Week: {{ game.current_week }}</p>
+
+<div class="mb-3">
+    <a href="{{ url_for('professor.create_event_effect', game_id=game.id) }}" class="btn btn-success">
+        Create New Event Effect
+    </a>
+    <a href="{{ url_for('professor.game_view', game_id=game.id) }}" class="btn btn-secondary">
+        Back to Game View
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Active and Scheduled Event Effects</h5>
+    </div>
+    <div class="card-body">
+        {% if event_effects %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Event</th>
+                        <th>Effect Type</th>
+                        <th>Target</th>
+                        <th>Weeks</th>
+                        <th>Status</th>
+                        <th>Effect Data</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for effect in event_effects %}
+                    <tr>
+                        <td>
+                            <strong>{{ effect.event.name }}</strong><br>
+                            <small class="text-muted">{{ effect.event.description[:50] }}...</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ effect.effect_type }}</span>
+                        </td>
+                        <td>
+                            {% if effect.facility_id %}
+                                <strong>Facility:</strong> {{ effect.facility.name }}<br>
+                                <small class="text-muted">{{ effect.facility.company.name }}</small>
+                            {% elif effect.company_id %}
+                                <strong>Company:</strong> {{ effect.company.name }}
+                            {% else %}
+                                <strong>All Companies</strong>
+                            {% endif %}
+                        </td>
+                        <td>
+                            Week {{ effect.start_week }} - {{ effect.end_week }}<br>
+                            <small class="text-muted">({{ effect.duration_weeks }} weeks)</small>
+                        </td>
+                        <td>
+                            {% if effect.is_expired %}
+                                <span class="badge bg-secondary">Expired</span>
+                            {% elif effect.start_week <= game.current_week <= effect.end_week %}
+                                <span class="badge bg-success">Active</span>
+                            {% elif effect.start_week > game.current_week %}
+                                <span class="badge bg-warning">Scheduled</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>
+                                {% set effect_data = effect.get_effect_data() %}
+                                {% for key, value in effect_data.items() %}
+                                    <strong>{{ key }}:</strong> {{ value }}<br>
+                                {% endfor %}
+                            </small>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('professor.delete_event_effect', effect_id=effect.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this event effect?')">
+                                    Delete
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            No event effects created yet. Click "Create New Event Effect" to add one.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Available Events</h5>
+    </div>
+    <div class="card-body">
+        {% if events %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Event Name</th>
+                        <th>Type</th>
+                        <th>Trigger Week</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr>
+                        <td>{{ event.name }}</td>
+                        <td><span class="badge bg-secondary">{{ event.event_type }}</span></td>
+                        <td>Week {{ event.trigger_week }}</td>
+                        <td>
+                            {% if event.is_completed %}
+                                <span class="badge bg-secondary">Completed</span>
+                            {% elif event.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-warning">Scheduled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-warning">
+            No events created yet. Create an event first before adding effects.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Create Event Effect{% endblock %}
+
+{% block content %}
+<h1>Create Event Effect</h1>
+<p class="lead">Game: {{ game.name }}</p>
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header">
+                <h5>Effect Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="effectForm">
+                    <div class="mb-3">
+                        <label for="event_id" class="form-label">Event</label>
+                        <select class="form-select" id="event_id" name="event_id" required>
+                            <option value="">Select an event...</option>
+                            {% for event in events %}
+                            <option value="{{ event.id }}">{{ event.name }} (Week {{ event.trigger_week }})</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">The event this effect is associated with</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="effect_type" class="form-label">Effect Type</label>
+                        <select class="form-select" id="effect_type" name="effect_type" required>
+                            <option value="">Select effect type...</option>
+                            <option value="stat_modifier">Stat Modifier (change generation rates, etc.)</option>
+                            <option value="facility_depreciation">Facility Depreciation (damage facilities)</option>
+                            <option value="capital_deletion">Capital Deletion (remove resources)</option>
+                            <option value="facility_disable">Facility Disable (temporarily disable)</option>
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="company_id" class="form-label">Target Company (Optional)</label>
+                                <select class="form-select" id="company_id" name="company_id">
+                                    <option value="">All Companies</option>
+                                    {% for company in companies %}
+                                    <option value="{{ company.id }}">{{ company.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Leave blank to affect all companies</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="facility_id" class="form-label">Target Facility (Optional)</label>
+                                <select class="form-select" id="facility_id" name="facility_id">
+                                    <option value="">All Facilities</option>
+                                </select>
+                                <small class="text-muted">Select a company first</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="start_week" class="form-label">Start Week</label>
+                                <input type="number" class="form-control" id="start_week" name="start_week" min="1" value="{{ game.current_week + 1 }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="duration_weeks" class="form-label">Duration (weeks)</label>
+                                <input type="number" class="form-control" id="duration_weeks" name="duration_weeks" min="1" value="1" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Effect-specific fields (shown/hidden based on effect_type) -->
+                    <div id="stat_modifier_fields" class="effect-fields" style="display:none;">
+                        <h6 class="mt-3 mb-3">Stat Modifier Settings</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="stat_name" class="form-label">Stat Name</label>
+                                    <select class="form-select" id="stat_name" name="stat_name">
+                                        <option value="goods_generation_rate">Goods Generation Rate</option>
+                                        <option value="ip_generation_rate">IP Generation Rate</option>
+                                        <option value="labor_generation_rate">Labor Generation Rate</option>
+                                        <option value="influence_generation_rate">Influence Generation Rate</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="modifier_value" class="form-label">Multiplier</label>
+                                    <input type="number" class="form-control" id="modifier_value" name="modifier_value" step="0.1" value="1.0">
+                                    <small class="text-muted">1.0 = normal, 1.5 = 50% bonus, 0.5 = 50% penalty</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="facility_depreciation_fields" class="effect-fields" style="display:none;">
+                        <h6 class="mt-3 mb-3">Facility Depreciation Settings</h6>
+                        <div class="mb-3">
+                            <label for="depreciation_amount" class="form-label">Depreciation Amount</label>
+                            <input type="number" class="form-control" id="depreciation_amount" name="depreciation_amount" step="0.1" value="5.0">
+                            <small class="text-muted">Amount of condition damage per week</small>
+                        </div>
+                    </div>
+
+                    <div id="capital_deletion_fields" class="effect-fields" style="display:none;">
+                        <h6 class="mt-3 mb-3">Capital Deletion Settings</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="capital_type" class="form-label">Capital Type</label>
+                                    <select class="form-select" id="capital_type" name="capital_type">
+                                        <option value="goods">Goods</option>
+                                        <option value="ip">IP (Intellectual Property)</option>
+                                        <option value="labor">Labor</option>
+                                        <option value="influence">Influence</option>
+                                        <option value="cash">Cash</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="capital_amount" class="form-label">Amount to Delete</label>
+                                    <input type="number" class="form-control" id="capital_amount" name="capital_amount" step="1" value="100">
+                                    <small class="text-muted">Amount removed per week</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="facility_disable_fields" class="effect-fields" style="display:none;">
+                        <h6 class="mt-3 mb-3">Facility Disable Settings</h6>
+                        <div class="alert alert-info">
+                            This effect will prevent the targeted facility/facilities from generating resources during the effect duration.
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 mt-3">Create Event Effect</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Show/hide effect-specific fields based on effect type
+document.getElementById('effect_type').addEventListener('change', function() {
+    const effectType = this.value;
+    const allFields = document.querySelectorAll('.effect-fields');
+
+    // Hide all effect fields
+    allFields.forEach(field => field.style.display = 'none');
+
+    // Show relevant fields
+    if (effectType) {
+        const targetField = document.getElementById(effectType + '_fields');
+        if (targetField) {
+            targetField.style.display = 'block';
+        }
+    }
+});
+
+// Load facilities when company is selected
+document.getElementById('company_id').addEventListener('change', function() {
+    const companyId = this.value;
+    const facilitySelect = document.getElementById('facility_id');
+
+    // Clear existing options
+    facilitySelect.innerHTML = '<option value="">All Facilities</option>';
+
+    if (companyId) {
+        // Fetch facilities for this company
+        fetch(`/professor/api/game/{{ game.id }}/facilities?company_id=${companyId}`)
+            .then(response => response.json())
+            .then(data => {
+                data.facilities.forEach(facility => {
+                    const option = document.createElement('option');
+                    option.value = facility.id;
+                    option.textContent = facility.name;
+                    facilitySelect.appendChild(option);
+                });
+            });
+    }
+});
+</script>
+{% endblock %}

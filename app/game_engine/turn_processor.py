@@ -3,7 +3,7 @@ Weekly Turn Processor
 Orchestrates all 29 phases of weekly turn processing
 """
 from app import db
-from app.models import Game, Company, Facility, Product, ConstructionTimer
+from app.models import Game, Company, Facility, Product, ConstructionTimer, EventEffect, GovernanceProposal, Event
 from app.game_engine import (
     facility_management,
     capital_generation,
@@ -526,10 +526,222 @@ def process_weekly_turn(game, config):
     }
 
     # ====================
-    # Phase 28: Update Status Effects
+    # Phase 28: Update Status Effects (EventEffect Processing)
     # ====================
+    effect_summary = []
+
+    # Get all active event effects for this game
+    all_effects = EventEffect.query.join(EventEffect.event).filter(
+        Event.game_id == game.id,
+        EventEffect.is_active == True,
+        EventEffect.is_expired == False
+    ).all()
+
+    for effect in all_effects:
+        # Check if effect should be active this week
+        if not effect.is_currently_active(current_week):
+            # Mark as expired if past end week
+            if current_week > effect.end_week:
+                effect.is_expired = True
+                effect_summary.append({
+                    'effect_id': effect.id,
+                    'action': 'expired',
+                    'effect_type': effect.effect_type
+                })
+            continue
+
+        # Apply the effect based on type
+        effect_data = effect.get_effect_data()
+
+        if effect.effect_type == 'stat_modifier':
+            # Apply stat modifiers to company facilities
+            # These are applied dynamically during generation phases
+            # Just track that they're active
+            effect_summary.append({
+                'effect_id': effect.id,
+                'action': 'active_modifier',
+                'company_id': effect.company_id,
+                'modifiers': effect_data
+            })
+
+        elif effect.effect_type == 'facility_depreciation':
+            # Apply additional depreciation to facilities
+            amount = effect_data.get('amount', 0)
+            if effect.facility_id:
+                # Specific facility
+                facility = Facility.query.get(effect.facility_id)
+                if facility:
+                    facility.condition = max(0, facility.condition - amount)
+                    effect_summary.append({
+                        'effect_id': effect.id,
+                        'action': 'depreciation',
+                        'facility_id': facility.id,
+                        'amount': amount
+                    })
+            elif effect.company_id:
+                # All facilities in company
+                company = Company.query.get(effect.company_id)
+                if company:
+                    for facility in company.facilities:
+                        facility.condition = max(0, facility.condition - amount)
+                    effect_summary.append({
+                        'effect_id': effect.id,
+                        'action': 'depreciation',
+                        'company_id': company.id,
+                        'facilities_affected': len(company.facilities),
+                        'amount': amount
+                    })
+            else:
+                # All facilities in game
+                for company in companies:
+                    for facility in company.facilities:
+                        facility.condition = max(0, facility.condition - amount)
+                effect_summary.append({
+                    'effect_id': effect.id,
+                    'action': 'depreciation',
+                    'all_companies': True,
+                    'amount': amount
+                })
+
+        elif effect.effect_type == 'capital_deletion':
+            # Delete capital from companies
+            capital_type = effect_data.get('capital_type')
+            amount = effect_data.get('amount', 0)
+
+            if effect.company_id:
+                company = Company.query.get(effect.company_id)
+                if company and capital_type:
+                    current_value = getattr(company, capital_type, 0)
+                    setattr(company, capital_type, max(0, current_value - amount))
+                    effect_summary.append({
+                        'effect_id': effect.id,
+                        'action': 'capital_deletion',
+                        'company_id': company.id,
+                        'capital_type': capital_type,
+                        'amount': amount
+                    })
+            else:
+                # All companies
+                for company in companies:
+                    if capital_type:
+                        current_value = getattr(company, capital_type, 0)
+                        setattr(company, capital_type, max(0, current_value - amount))
+                effect_summary.append({
+                    'effect_id': effect.id,
+                    'action': 'capital_deletion',
+                    'all_companies': True,
+                    'capital_type': capital_type,
+                    'amount': amount
+                })
+
+        elif effect.effect_type == 'facility_disable':
+            # Disable facilities temporarily
+            # Mark in effect summary - actual disabling would be checked during generation
+            effect_summary.append({
+                'effect_id': effect.id,
+                'action': 'facility_disabled',
+                'facility_id': effect.facility_id,
+                'company_id': effect.company_id
+            })
+
     phase_summaries['status_effects'] = {
-        'message': 'Status effects updated (to be implemented)'
+        'effects_processed': len(effect_summary),
+        'effects_expired': len([e for e in effect_summary if e.get('action') == 'expired']),
+        'details': effect_summary
+    }
+
+    # ====================
+    # Phase 28b: Execute Governance Proposals
+    # ====================
+    governance_summary = []
+
+    # Get all active proposals that have ended voting this week
+    ended_proposals = GovernanceProposal.query.join(GovernanceProposal.company).filter(
+        Company.game_id == game.id,
+        GovernanceProposal.voting_ends_week == current_week,
+        GovernanceProposal.status == 'active'
+    ).all()
+
+    for proposal in ended_proposals:
+        # Calculate if proposal passed
+        current_percent = proposal.calculate_vote_percentage()
+        passed = current_percent >= proposal.required_percent
+
+        if passed:
+            proposal.status = 'passed'
+
+            # Execute the proposal based on type
+            proposal_data = proposal.get_proposal_data()
+            company = proposal.company
+
+            if proposal.proposal_type == 'stock_split':
+                # Execute stock split
+                split_ratio = proposal_data.get('split_ratio', 2)  # Default 2:1
+
+                # Update all stock ownerships
+                from app.models import StockOwnership
+                ownerships = StockOwnership.query.filter_by(company_id=company.id).all()
+
+                for ownership in ownerships:
+                    ownership.shares_owned = int(ownership.shares_owned * split_ratio)
+
+                # Update total shares
+                company.total_shares = int(company.total_shares * split_ratio)
+
+                # Adjust stock price (inverse of split ratio)
+                company.stock_price = company.stock_price / split_ratio
+
+                proposal.status = 'executed'
+                governance_summary.append({
+                    'proposal_id': proposal.id,
+                    'company': company.name,
+                    'type': 'stock_split',
+                    'split_ratio': split_ratio,
+                    'result': 'executed'
+                })
+
+            elif proposal.proposal_type == 'dividend_change':
+                # Execute dividend rate change
+                new_dividend_rate = proposal_data.get('new_dividend_rate', 0)
+                old_rate = company.dividend_rate
+
+                company.dividend_rate = new_dividend_rate
+
+                proposal.status = 'executed'
+                governance_summary.append({
+                    'proposal_id': proposal.id,
+                    'company': company.name,
+                    'type': 'dividend_change',
+                    'old_rate': old_rate,
+                    'new_rate': new_dividend_rate,
+                    'result': 'executed'
+                })
+
+            elif proposal.proposal_type == 'custom':
+                # Custom proposals just marked as passed, professor must handle
+                governance_summary.append({
+                    'proposal_id': proposal.id,
+                    'company': company.name,
+                    'type': 'custom',
+                    'result': 'passed_awaiting_professor'
+                })
+        else:
+            # Proposal failed
+            proposal.status = 'failed'
+            governance_summary.append({
+                'proposal_id': proposal.id,
+                'company': proposal.company.name,
+                'type': proposal.proposal_type,
+                'result': 'failed',
+                'vote_percent': current_percent,
+                'required_percent': proposal.required_percent
+            })
+
+    phase_summaries['governance_execution'] = {
+        'proposals_resolved': len(governance_summary),
+        'proposals_executed': len([g for g in governance_summary if 'executed' in g.get('result', '')]),
+        'proposals_failed': len([g for g in governance_summary if g.get('result') == 'failed']),
+        'details': governance_summary
     }
 
     # ====================

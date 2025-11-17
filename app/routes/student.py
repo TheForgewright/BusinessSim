@@ -53,7 +53,27 @@ def company_view(company_id):
         flash('You do not own this company', 'error')
         return redirect(url_for('student.dashboard'))
 
-    return render_template('student/company_view.html', company=company)
+    # Get active event effects affecting this company
+    from app.models import EventEffect, Event
+    current_week = company.game.current_week
+
+    # Get effects that affect this company specifically or all companies
+    active_effects = EventEffect.query.join(EventEffect.event).filter(
+        Event.game_id == company.game_id,
+        EventEffect.is_active == True,
+        EventEffect.is_expired == False,
+        EventEffect.start_week <= current_week,
+        EventEffect.end_week >= current_week
+    ).filter(
+        db.or_(
+            EventEffect.company_id == company.id,
+            EventEffect.company_id == None
+        )
+    ).all()
+
+    return render_template('student/company_view.html',
+                          company=company,
+                          active_effects=active_effects)
 
 
 @bp.route('/company/<int:company_id>/set_focus', methods=['POST'])
