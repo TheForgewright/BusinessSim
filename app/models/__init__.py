@@ -15,6 +15,7 @@ from app.models.models import (
     StockTransaction,
     StockPriceHistory,
     Event,
+    EventEffect,
     ConstructionTimer,
     GovernanceProposal,
     GovernanceVote
@@ -34,6 +35,7 @@ __all__ = [
     'StockTransaction',
     'StockPriceHistory',
     'Event',
+    'EventEffect',
     'ConstructionTimer',
     'GovernanceProposal',
     'GovernanceVote'

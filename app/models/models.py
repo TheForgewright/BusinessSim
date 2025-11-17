@@ -750,3 +750,74 @@ class GovernanceVote(db.Model):
             'vote_direction': self.vote_direction,
             'voted_at': self.voted_at.isoformat() if self.voted_at else None
         }
+
+
+class EventEffect(db.Model):
+    """Active effects from events applied to companies/facilities"""
+    __tablename__ = 'event_effects'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)  # None = all companies
+    facility_id = db.Column(db.Integer, db.ForeignKey('facilities.id'), nullable=True)  # Specific facility target
+
+    # Effect Type
+    effect_type = db.Column(db.String(50), nullable=False)
+    # Types: stat_modifier, facility_depreciation, capital_deletion, facility_disable
+
+    # Effect Details (JSON)
+    effect_data_json = db.Column(db.Text, default='{}')
+    # For stat_modifier: {stat_name: modifier_value} e.g. {"goods_generation_rate": 1.5}
+    # For facility_depreciation: {amount: 10.0}
+    # For capital_deletion: {capital_type: "goods", amount: 100}
+    # For facility_disable: {duration_weeks: 3}
+
+    # Duration
+    start_week = db.Column(db.Integer, nullable=False)
+    duration_weeks = db.Column(db.Integer, nullable=False)
+    end_week = db.Column(db.Integer, nullable=False)  # Calculated: start_week + duration_weeks
+
+    # Status
+    is_active = db.Column(db.Boolean, default=True)
+    is_expired = db.Column(db.Boolean, default=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    event = db.relationship('Event', backref=db.backref('effects', lazy='dynamic'))
+    company = db.relationship('Company', backref=db.backref('active_effects', lazy='dynamic'))
+    facility = db.relationship('Facility', backref=db.backref('active_effects', lazy='dynamic'))
+
+    def get_effect_data(self):
+        """Parse effect data from JSON"""
+        import json
+        if self.effect_data_json:
+            return json.loads(self.effect_data_json)
+        return {}
+
+    def set_effect_data(self, data):
+        """Set effect data as JSON"""
+        import json
+        self.effect_data_json = json.dumps(data)
+
+    def is_currently_active(self, current_week):
+        """Check if effect should be active for the given week"""
+        return (self.is_active and
+                not self.is_expired and
+                self.start_week <= current_week <= self.end_week)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'company_id': self.company_id,
+            'facility_id': self.facility_id,
+            'effect_type': self.effect_type,
+            'effect_data': self.get_effect_data(),
+            'start_week': self.start_week,
+            'duration_weeks': self.duration_weeks,
+            'end_week': self.end_week,
+            'is_active': self.is_active,
+            'is_expired': self.is_expired,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
