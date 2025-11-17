@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Create Product - {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Create New Product</h1>
+<p class="lead">Company: {{ company.name }}</p>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Product Details</h5>
+            </div>
+            <div class="card-body">
+                <form id="createProductForm">
+                    <div class="mb-3">
+                        <label for="productName" class="form-label">Product Name</label>
+                        <input type="text" class="form-control" id="productName" name="name" required>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="ipInvestment" class="form-label">IP Investment</label>
+                            <input type="number" class="form-control" id="ipInvestment" name="ip_invested"
+                                   min="0" max="{{ company.ip_active }}" step="0.1" value="0" required>
+                            <small class="text-muted">Available: {{ "%.1f"|format(company.ip_active) }}</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="goodsInvestment" class="form-label">Goods Investment</label>
+                            <input type="number" class="form-control" id="goodsInvestment" name="goods_invested"
+                                   min="0" max="{{ company.goods_active }}" step="0.1" value="0" required>
+                            <small class="text-muted">Available: {{ "%.1f"|format(company.goods_active) }}</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Select 3 Tags</label>
+                        <div id="tagSelection" class="row">
+                            {% for tag in tags %}
+                            <div class="col-md-4 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input tag-checkbox" type="checkbox"
+                                           value="{{ tag.name }}" id="tag-{{ tag.id }}">
+                                    <label class="form-check-label" for="tag-{{ tag.id }}">
+                                        {{ tag.name }}
+                                        <small class="text-muted d-block">
+                                            Demand: {{ "%.1f"|format(tag.demand_multiplier) }}x |
+                                            Margin: {{ "%.1f"|format(tag.profit_margin) }}x
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small id="tagCount" class="text-muted">Selected: 0/3</small>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Product Value:</strong> Base value = IP + Goods invested
+                        <br><strong>Note:</strong> Products degrade over time if not linked to sales facilities
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="createBtn">Create Product</button>
+                    <a href="{{ url_for('student.company_view', company_id=company.id) }}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6>Current Inventory</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>IP (Active):</strong> {{ "%.1f"|format(company.ip_active) }}</p>
+                <p><strong>Goods (Active):</strong> {{ "%.1f"|format(company.goods_active) }}</p>
+                <p><strong>IP (Backed Up):</strong> {{ "%.1f"|format(company.ip_backed_up) }}</p>
+                <p><strong>Goods (Backed Up):</strong> {{ "%.1f"|format(company.goods_backed_up) }}</p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6>Estimated Product Value</h6>
+            </div>
+            <div class="card-body">
+                <h3 id="estimatedValue">$0.00</h3>
+                <small class="text-muted">IP + Goods invested</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const companyId = {{ company.id }};
+const maxTags = 3;
+
+// Tag selection limit
+document.querySelectorAll('.tag-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const checkedCount = document.querySelectorAll('.tag-checkbox:checked').length;
+        document.getElementById('tagCount').textContent = `Selected: ${checkedCount}/${maxTags}`;
+
+        if (checkedCount >= maxTags) {
+            // Disable unchecked boxes
+            document.querySelectorAll('.tag-checkbox:not(:checked)').forEach(cb => {
+                cb.disabled = true;
+            });
+        } else {
+            // Enable all boxes
+            document.querySelectorAll('.tag-checkbox').forEach(cb => {
+                cb.disabled = false;
+            });
+        }
+    });
+});
+
+// Update estimated value
+document.getElementById('ipInvestment').addEventListener('input', updateEstimate);
+document.getElementById('goodsInvestment').addEventListener('input', updateEstimate);
+
+function updateEstimate() {
+    const ip = parseFloat(document.getElementById('ipInvestment').value) || 0;
+    const goods = parseFloat(document.getElementById('goodsInvestment').value) || 0;
+    const total = ip + goods;
+    document.getElementById('estimatedValue').textContent = '$' + total.toFixed(2);
+}
+
+// Form submission
+document.getElementById('createProductForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const selectedTags = Array.from(document.querySelectorAll('.tag-checkbox:checked')).map(cb => cb.value);
+
+    if (selectedTags.length !== maxTags) {
+        showAlert(`Please select exactly ${maxTags} tags`, 'warning');
+        return;
+    }
+
+    const formData = {
+        company_id: companyId,
+        name: document.getElementById('productName').value,
+        ip_invested: parseFloat(document.getElementById('ipInvestment').value),
+        goods_invested: parseFloat(document.getElementById('goodsInvestment').value),
+        tags: selectedTags
+    };
+
+    if (formData.ip_invested <= 0 && formData.goods_invested <= 0) {
+        showAlert('Must invest at least some IP or Goods', 'warning');
+        return;
+    }
+
+    document.getElementById('createBtn').disabled = true;
+
+    const response = await fetch('/api/product/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(formData)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        showAlert('Product created successfully!', 'success');
+        setTimeout(() => {
+            window.location.href = `/student/company/${companyId}`;
+        }, 1500);
+    } else {
+        showAlert(result.message, 'danger');
+        document.getElementById('createBtn').disabled = false;
+    }
+});
+</script>
+{% endblock %}

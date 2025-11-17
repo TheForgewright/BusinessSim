@@ -13,6 +13,7 @@ from app.game_engine import (
 )
 from app import db
 from config import config
+import json
 
 bp = Blueprint('api', __name__)
 
@@ -603,4 +604,95 @@ def toggle_analytics_visibility(game_id, company_id):
         'success': True,
         'visible': new_state,
         'company_id': company_id
+    })
+
+
+@bp.route('/product/create', methods=['POST'])
+def create_product():
+    """Create a new product"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    company_id = data.get('company_id')
+    name = data.get('name')
+    ip_invested = data.get('ip_invested', 0)
+    goods_invested = data.get('goods_invested', 0)
+    tags = data.get('tags', [])
+
+    if not name or not company_id:
+        return jsonify({'success': False, 'message': 'Missing required fields'}), 400
+
+    if len(tags) != 3:
+        return jsonify({'success': False, 'message': 'Must select exactly 3 tags'}), 400
+
+    company = Company.query.get_or_404(company_id)
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    # Check if company has enough capital
+    if ip_invested > company.ip_active:
+        return jsonify({'success': False, 'message': 'Insufficient IP'}), 400
+
+    if goods_invested > company.goods_active:
+        return jsonify({'success': False, 'message': 'Insufficient Goods'}), 400
+
+    if ip_invested <= 0 and goods_invested <= 0:
+        return jsonify({'success': False, 'message': 'Must invest at least some IP or Goods'}), 400
+
+    # Deduct capital
+    company.ip_active -= ip_invested
+    company.goods_active -= goods_invested
+
+    # Calculate base value
+    base_value = ip_invested + goods_invested
+
+    # Create product
+    product = Product(
+        company_id=company_id,
+        name=name,
+        ip_invested=ip_invested,
+        goods_invested=goods_invested,
+        base_value=base_value,
+        current_value=base_value,
+        tags_json=json.dumps(tags),
+        week_created=company.game.current_week
+    )
+
+    db.session.add(product)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': f'Product "{name}" created successfully',
+        'product_id': product.id,
+        'base_value': base_value
+    })
+
+
+@bp.route('/facility/<int:facility_id>/products')
+def get_facility_products(facility_id):
+    """Get available and linked products for a facility"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    facility = Facility.query.get_or_404(facility_id)
+    company = facility.company
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    # Get all products from the company
+    all_products = Product.query.filter_by(company_id=company.id).all()
+
+    # Get currently linked products
+    linked_product_ids = facility.get_linked_products()
+
+    return jsonify({
+        'success': True,
+        'linked_products': linked_product_ids,
+        'available_products': [p.to_dict() for p in all_products]
     })

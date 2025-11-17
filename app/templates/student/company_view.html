@@ -75,6 +75,7 @@
                             <th>Active</th>
                             <th>Backed Up</th>
                             <th>Total</th>
+                            <th>Transfer</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -83,27 +84,48 @@
                             <td>{{ "%.1f"|format(company.goods_active) }}</td>
                             <td>{{ "%.1f"|format(company.goods_backed_up) }}</td>
                             <td>{{ "%.1f"|format(company.goods_active + company.goods_backed_up) }}</td>
+                            <td>
+                                <button class="btn btn-xs btn-outline-primary" onclick="showTransferModal('goods', {{ company.goods_active }}, {{ company.goods_backed_up }})">
+                                    Move
+                                </button>
+                            </td>
                         </tr>
                         <tr>
                             <td><strong>IP</strong></td>
                             <td>{{ "%.1f"|format(company.ip_active) }}</td>
                             <td>{{ "%.1f"|format(company.ip_backed_up) }}</td>
                             <td>{{ "%.1f"|format(company.ip_active + company.ip_backed_up) }}</td>
+                            <td>
+                                <button class="btn btn-xs btn-outline-primary" onclick="showTransferModal('ip', {{ company.ip_active }}, {{ company.ip_backed_up }})">
+                                    Move
+                                </button>
+                            </td>
                         </tr>
                         <tr>
                             <td><strong>Influence</strong></td>
                             <td>{{ "%.1f"|format(company.influence_active) }}</td>
                             <td>{{ "%.1f"|format(company.influence_backed_up) }}</td>
                             <td>{{ "%.1f"|format(company.influence_active + company.influence_backed_up) }}</td>
+                            <td>
+                                <button class="btn btn-xs btn-outline-primary" onclick="showTransferModal('influence', {{ company.influence_active }}, {{ company.influence_backed_up }})">
+                                    Move
+                                </button>
+                            </td>
                         </tr>
                         <tr>
                             <td><strong>Labor</strong></td>
                             <td>{{ "%.1f"|format(company.labor_active) }}</td>
                             <td>{{ "%.1f"|format(company.labor_backed_up) }}</td>
                             <td>{{ "%.1f"|format(company.labor_active + company.labor_backed_up) }}</td>
+                            <td>
+                                <button class="btn btn-xs btn-outline-primary" onclick="showTransferModal('labor', {{ company.labor_active }}, {{ company.labor_backed_up }})">
+                                    Move
+                                </button>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
+                <small class="text-muted">Active capital is used for generation and building. Backed up capital is protected from weekly costs.</small>
             </div>
         </div>
     </div>
@@ -148,6 +170,7 @@
                                 <th>Status</th>
                                 <th>Condition</th>
                                 <th>Maintenance Due</th>
+                                <th>Linked Products</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -165,6 +188,15 @@
                                 </td>
                                 <td>{{ "%.1f"|format(facility.condition) }}%</td>
                                 <td>{{ facility.weeks_until_maintenance }} weeks</td>
+                                <td>
+                                    {% if facility.template.link_capacity > 0 %}
+                                        <button class="btn btn-sm btn-info" onclick="showLinkProductModal({{ facility.id }}, '{{ facility.name }}', {{ facility.template.link_capacity }})">
+                                            Manage ({{ facility.get_linked_products()|length }}/{{ facility.template.link_capacity }})
+                                        </button>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if facility.is_active %}
                                         <button class="btn btn-sm btn-warning" onclick="shutdownFacility({{ facility.id }})">Shutdown</button>
@@ -195,6 +227,54 @@
                 <div id="construction-timers">
                     <p class="text-muted">Loading...</p>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Products</h5>
+                <a href="{{ url_for('student.create_product', company_id=company.id) }}" class="btn btn-success btn-sm">Create Product</a>
+            </div>
+            <div class="card-body">
+                {% if company.products %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>IP Invested</th>
+                                <th>Goods Invested</th>
+                                <th>Base Value</th>
+                                <th>Current Value</th>
+                                <th>Tags</th>
+                                <th>Age (weeks)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in company.products %}
+                            <tr>
+                                <td>{{ product.name }}</td>
+                                <td>{{ "%.1f"|format(product.ip_invested) }}</td>
+                                <td>{{ "%.1f"|format(product.goods_invested) }}</td>
+                                <td>${{ "%.2f"|format(product.base_value) }}</td>
+                                <td>${{ "%.2f"|format(product.current_value) }}</td>
+                                <td>
+                                    {% for tag in product.get_tags() %}
+                                        <span class="badge bg-info">{{ tag }}</span>
+                                    {% endfor %}
+                                </td>
+                                <td>{{ company.game.current_week - product.week_created }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No products yet. Create products from IP and Goods to sell them!</p>
+                    <a href="{{ url_for('student.create_product', company_id=company.id) }}" class="btn btn-primary">Create Your First Product</a>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -259,7 +339,206 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Capital Transfer Modal -->
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Transfer <span id="transferCapitalType"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Active: <strong id="transferActive">0</strong><br>
+                    Backed Up: <strong id="transferBackedUp">0</strong>
+                </p>
+                <div class="mb-3">
+                    <label class="form-label">Amount to Transfer</label>
+                    <input type="number" id="transferAmount" class="form-control" min="0" step="0.1" value="0">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Direction</label>
+                    <select id="transferDirection" class="form-select">
+                        <option value="to_backup">Active → Backed Up</option>
+                        <option value="to_active">Backed Up → Active</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="executeTransfer()">Transfer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Product Linking Modal -->
+<div class="modal fade" id="linkProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manage Products for <span id="modalFacilityName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><span id="modalLinkedCount">0</span> / <span id="modalCapacity">0</span> slots filled</p>
+                <div id="productList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+const companyId = {{ company.id }};
+
+// Capital Transfer
+let currentCapitalType = null;
+let currentActiveAmount = 0;
+let currentBackupAmount = 0;
+
+function showTransferModal(capitalType, active, backedUp) {
+    currentCapitalType = capitalType;
+    currentActiveAmount = active;
+    currentBackupAmount = backedUp;
+
+    document.getElementById('transferCapitalType').textContent = capitalType.toUpperCase();
+    document.getElementById('transferActive').textContent = active.toFixed(1);
+    document.getElementById('transferBackedUp').textContent = backedUp.toFixed(1);
+    document.getElementById('transferAmount').value = 0;
+    document.getElementById('transferAmount').max = active;
+
+    const modal = new bootstrap.Modal(document.getElementById('transferModal'));
+    modal.show();
+}
+
+// Update max when direction changes
+document.addEventListener('DOMContentLoaded', function() {
+    const directionSelect = document.getElementById('transferDirection');
+    if (directionSelect) {
+        directionSelect.addEventListener('change', function() {
+            const amountInput = document.getElementById('transferAmount');
+            if (this.value === 'to_backup') {
+                amountInput.max = currentActiveAmount;
+            } else {
+                amountInput.max = currentBackupAmount;
+            }
+            amountInput.value = 0;
+        });
+    }
+});
+
+async function executeTransfer() {
+    const amount = parseFloat(document.getElementById('transferAmount').value);
+    const direction = document.getElementById('transferDirection').value;
+
+    if (amount <= 0) {
+        showAlert('Amount must be greater than 0', 'warning');
+        return;
+    }
+
+    const result = await transferCapital(companyId, currentCapitalType, amount, direction);
+
+    if (result.success) {
+        bootstrap.Modal.getInstance(document.getElementById('transferModal')).hide();
+        setTimeout(() => location.reload(), 1000);
+    }
+}
+
+// Product Linking
+let currentFacilityId = null;
+let currentCapacity = 0;
+
+// Show link product modal
+async function showLinkProductModal(facilityId, facilityName, capacity) {
+    currentFacilityId = facilityId;
+    currentCapacity = capacity;
+
+    document.getElementById('modalFacilityName').textContent = facilityName;
+    document.getElementById('modalCapacity').textContent = capacity;
+
+    await loadProductsForFacility(facilityId);
+
+    const modal = new bootstrap.Modal(document.getElementById('linkProductModal'));
+    modal.show();
+}
+
+// Load products for facility
+async function loadProductsForFacility(facilityId) {
+    const response = await fetch(`/api/facility/${facilityId}/products`);
+    const data = await response.json();
+
+    const productList = document.getElementById('productList');
+    const linkedCount = data.linked_products ? data.linked_products.length : 0;
+
+    document.getElementById('modalLinkedCount').textContent = linkedCount;
+
+    if (!data.available_products || data.available_products.length === 0) {
+        productList.innerHTML = '<p class="text-muted">No products available. Create products first!</p>';
+        return;
+    }
+
+    let html = '<div class="list-group">';
+
+    data.available_products.forEach(product => {
+        const isLinked = data.linked_products && data.linked_products.includes(product.id);
+        const disabled = !isLinked && linkedCount >= currentCapacity;
+
+        html += `<div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${product.name}</strong>
+                    <br><small class="text-muted">Value: $${product.current_value.toFixed(2)} | Tags: ${product.tags.join(', ')}</small>
+                </div>
+                <div>
+                    ${isLinked ?
+                        `<button class="btn btn-sm btn-danger" onclick="unlinkProduct(${facilityId}, ${product.id})">Unlink</button>` :
+                        `<button class="btn btn-sm btn-primary" ${disabled ? 'disabled' : ''} onclick="linkProduct(${facilityId}, ${product.id})">${disabled ? 'Full' : 'Link'}</button>`
+                    }
+                </div>
+            </div>
+        </div>`;
+    });
+
+    html += '</div>';
+    productList.innerHTML = html;
+}
+
+// Link product to facility
+async function linkProduct(facilityId, productId) {
+    const response = await fetch(`/api/facility/${facilityId}/link_product`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({product_id: productId})
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        showAlert('Product linked successfully!', 'success');
+        await loadProductsForFacility(facilityId);
+    } else {
+        showAlert(result.message, 'danger');
+    }
+}
+
+// Unlink product from facility
+async function unlinkProduct(facilityId, productId) {
+    const response = await fetch(`/api/facility/${facilityId}/unlink_product`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({product_id: productId})
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        showAlert('Product unlinked successfully!', 'success');
+        await loadProductsForFacility(facilityId);
+    } else {
+        showAlert(result.message, 'danger');
+    }
+}
+
 // Load construction timers
 async function loadConstructionTimers() {
     try {

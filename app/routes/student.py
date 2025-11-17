@@ -220,3 +220,23 @@ def analytics(company_id):
                           company=company,
                           game=game,
                           can_view_analytics=can_view)
+
+
+@bp.route('/company/<int:company_id>/create_product')
+def create_product(company_id):
+    """Create a new product"""
+    auth_check = require_student()
+    if auth_check:
+        return auth_check
+
+    company = Company.query.get_or_404(company_id)
+    player = Player.query.get(session['player_id'])
+
+    if company.owner_id != player.id:
+        flash('You do not own this company', 'error')
+        return redirect(url_for('student.dashboard'))
+
+    from app.models import Tag
+    tags = Tag.query.filter_by(game_id=company.game_id).all()
+
+    return render_template('student/create_product.html', company=company, tags=tags)
