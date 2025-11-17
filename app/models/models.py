@@ -22,6 +22,11 @@ class Game(db.Model):
     analytics_visible_json = db.Column(db.Text, default='{}')  # JSON: {company_id: bool} - professor can toggle per player
     sales_profit_facility_multiplier = db.Column(db.Float, default=0.8)  # 80% of facility cost attributed to sales
 
+    # Governance Settings
+    governance_base_threshold = db.Column(db.Float, default=60.0)  # Base vote % required (default 60%)
+    governance_difficulty_modifier = db.Column(db.Float, default=5.0)  # % reduction per difficulty point (default 5%)
+    governance_influence_modifier = db.Column(db.Float, default=5.0)  # % increase per influence spent (default 5%)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -117,6 +122,9 @@ class Company(db.Model):
     # Stock Information
     total_shares = db.Column(db.Integer, default=1000)
     stock_price = db.Column(db.Float, default=5.0)
+    has_ipo = db.Column(db.Boolean, default=False)  # Whether company has gone public
+    ipo_week = db.Column(db.Integer)  # Week company went public
+    dividend_rate = db.Column(db.Float, default=0.0)  # Dividend per share per week (set at IPO)
 
     # Cash Reserve (for auto-pay protection)
     cash_reserve = db.Column(db.Float, default=0.0)
@@ -621,4 +629,124 @@ class ConstructionTimer(db.Model):
             'completion_week': self.completion_week,
             'costs_paid': self.get_costs_paid(),
             'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class StockPriceHistory(db.Model):
+    """Track stock prices over time for charts"""
+    __tablename__ = 'stock_price_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    week = db.Column(db.Integer, nullable=False)
+    stock_price = db.Column(db.Float, nullable=False)
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'company_id': self.company_id,
+            'week': self.week,
+            'stock_price': self.stock_price,
+            'recorded_at': self.recorded_at.isoformat() if self.recorded_at else None
+        }
+
+
+class GovernanceProposal(db.Model):
+    """Company governance proposals (splits, major decisions)"""
+    __tablename__ = 'governance_proposals'
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    proposed_by = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
+
+    proposal_type = db.Column(db.String(50), nullable=False)  # 'stock_split', 'dividend_change', 'custom'
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+
+    # Voting parameters
+    difficulty = db.Column(db.Integer, nullable=False, default=5)  # 1-10
+    influence_spent = db.Column(db.Float, default=0.0)  # Influence spent by proposer
+
+    # Voting status
+    required_percent = db.Column(db.Float, nullable=False)  # Calculated based on difficulty
+    votes_for = db.Column(db.Integer, default=0)
+    votes_against = db.Column(db.Integer, default=0)
+    total_eligible_shares = db.Column(db.Integer, nullable=False)  # Shares that can vote (non-owner)
+
+    # Timing
+    created_week = db.Column(db.Integer, nullable=False)
+    voting_ends_week = db.Column(db.Integer, nullable=False)
+
+    # Status
+    status = db.Column(db.String(20), default='active')  # 'active', 'passed', 'failed', 'executed'
+
+    # Proposal data (JSON for type-specific fields)
+    proposal_data_json = db.Column(db.Text, default='{}')
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    company = db.relationship('Company')
+    proposer = db.relationship('Player')
+    votes = db.relationship('GovernanceVote', backref='proposal', lazy=True, cascade='all, delete-orphan')
+
+    def get_proposal_data(self):
+        return json.loads(self.proposal_data_json) if self.proposal_data_json else {}
+
+    def set_proposal_data(self, data_dict):
+        self.proposal_data_json = json.dumps(data_dict)
+
+    def calculate_vote_percentage(self):
+        """Calculate percentage of eligible shares voting for"""
+        if self.total_eligible_shares == 0:
+            return 0.0
+        return (self.votes_for / self.total_eligible_shares) * 100
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'company_id': self.company_id,
+            'proposed_by': self.proposed_by,
+            'proposal_type': self.proposal_type,
+            'title': self.title,
+            'description': self.description,
+            'difficulty': self.difficulty,
+            'influence_spent': self.influence_spent,
+            'required_percent': self.required_percent,
+            'votes_for': self.votes_for,
+            'votes_against': self.votes_against,
+            'total_eligible_shares': self.total_eligible_shares,
+            'current_percent': self.calculate_vote_percentage(),
+            'created_week': self.created_week,
+            'voting_ends_week': self.voting_ends_week,
+            'status': self.status,
+            'proposal_data': self.get_proposal_data(),
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class GovernanceVote(db.Model):
+    """Individual votes on governance proposals"""
+    __tablename__ = 'governance_votes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    proposal_id = db.Column(db.Integer, db.ForeignKey('governance_proposals.id'), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=True)  # None for NPCs
+    investor_name = db.Column(db.String(200), nullable=False)
+
+    shares_voted = db.Column(db.Integer, nullable=False)
+    vote_direction = db.Column(db.String(10), nullable=False)  # 'for', 'against', 'abstain'
+
+    voted_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'proposal_id': self.proposal_id,
+            'player_id': self.player_id,
+            'investor_name': self.investor_name,
+            'shares_voted': self.shares_voted,
+            'vote_direction': self.vote_direction,
+            'voted_at': self.voted_at.isoformat() if self.voted_at else None
         }

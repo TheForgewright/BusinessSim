@@ -13,8 +13,11 @@ from app.models.models import (
     Tag,
     StockOwnership,
     StockTransaction,
+    StockPriceHistory,
     Event,
-    ConstructionTimer
+    ConstructionTimer,
+    GovernanceProposal,
+    GovernanceVote
 )
 
 __all__ = [
@@ -29,6 +32,9 @@ __all__ = [
     'Tag',
     'StockOwnership',
     'StockTransaction',
+    'StockPriceHistory',
     'Event',
-    'ConstructionTimer'
+    'ConstructionTimer',
+    'GovernanceProposal',
+    'GovernanceVote'
 ]
