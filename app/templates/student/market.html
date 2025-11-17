@@ -4,7 +4,7 @@
 
 {% block content %}
 <h1>Stock Market</h1>
-<p class="lead">Trade stocks in other companies</p>
+<p class="lead">Trade stocks in public companies</p>
 
 <div class="row mb-4">
     <div class="col-md-4">
@@ -39,84 +39,390 @@
     </div>
 </div>
 
+<!-- Stock Price History Chart -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5><i class="bi bi-graph-up"></i> Stock Price History</h5>
+    </div>
+    <div class="card-body">
+        <canvas id="stockHistoryChart" height="80"></canvas>
+    </div>
+</div>
+
+<!-- Available Companies -->
 <div class="card">
     <div class="card-header">
         <h5>Available Companies</h5>
     </div>
     <div class="card-body">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Company</th>
-                    <th>Stock Price</th>
-                    <th>Equity</th>
-                    <th>Cash</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for company in companies %}
-                <tr>
-                    <td><strong>{{ company.name }}</strong></td>
-                    <td>${{ "%.2f"|format(company.stock_price) }}</td>
-                    <td>${{ "%.2f"|format(company.current_equity) }}</td>
-                    <td>${{ "%.2f"|format(company.cash) }}</td>
-                    <td>
-                        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#buyModal{{ company.id }}">Buy</button>
-                        <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#sellModal{{ company.id }}">Sell</button>
-                    </td>
-                </tr>
-
-                <!-- Buy Modal -->
-                <div class="modal fade" id="buyModal{{ company.id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Buy Stock - {{ company.name }}</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p>Price per share: ${{ "%.2f"|format(company.stock_price) }}</p>
-                                <div class="mb-3">
-                                    <label class="form-label">Number of shares to buy:</label>
-                                    <input type="number" class="form-control" id="buyShares{{ company.id }}" min="1" value="10">
-                                </div>
-                                <p>Total cost: <span id="buyCost{{ company.id }}">$0.00</span></p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="button" class="btn btn-success" onclick="buyStock({{ company.id }}, document.getElementById('buyShares{{ company.id }}').value)">Buy</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sell Modal -->
-                <div class="modal fade" id="sellModal{{ company.id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Sell Stock - {{ company.name }}</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p>Price per share: ${{ "%.2f"|format(company.stock_price) }}</p>
-                                <div class="mb-3">
-                                    <label class="form-label">Number of shares to sell:</label>
-                                    <input type="number" class="form-control" id="sellShares{{ company.id }}" min="1" value="10">
-                                </div>
-                                <p>Total revenue: <span id="sellRevenue{{ company.id }}">$0.00</span></p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="button" class="btn btn-danger" onclick="sellStock({{ company.id }}, document.getElementById('sellShares{{ company.id }}').value)">Sell</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Company</th>
+                        <th>Status</th>
+                        <th>Stock Price</th>
+                        <th>Dividend/Share</th>
+                        <th>Your Shares</th>
+                        <th>Equity</th>
+                        <th>Cash</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for company in companies %}
+                    <tr>
+                        <td><strong>{{ company.name }}</strong></td>
+                        <td>
+                            {% if company.has_ipo %}
+                                <span class="badge bg-success">PUBLIC</span>
+                            {% else %}
+                                <span class="badge bg-secondary">PRIVATE</span>
+                            {% endif %}
+                        </td>
+                        <td>${{ "%.2f"|format(company.stock_price) }}</td>
+                        <td>
+                            {% if company.has_ipo and company.dividend_rate > 0 %}
+                                <span class="text-success">${{ "%.2f"|format(company.dividend_rate) }}/week</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if company.id in ownerships %}
+                                <strong>{{ ownerships[company.id] }}</strong>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        </td>
+                        <td>${{ "%.2f"|format(company.current_equity) }}</td>
+                        <td>${{ "%.2f"|format(company.cash) }}</td>
+                        <td>
+                            {% if company.has_ipo %}
+                                <button class="btn btn-sm btn-success" onclick="showBuyModal({{ company.id }}, '{{ company.name }}', {{ company.stock_price }})">
+                                    <i class="bi bi-cart-plus"></i> Buy
+                                </button>
+                                {% if company.id in ownerships and ownerships[company.id] > 0 %}
+                                    <button class="btn btn-sm btn-danger" onclick="showSellModal({{ company.id }}, '{{ company.name }}', {{ company.stock_price }}, {{ ownerships[company.id] }})">
+                                        <i class="bi bi-cash"></i> Sell
+                                    </button>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">Not Public</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
+
+<!-- Buy Modal -->
+<div class="modal fade" id="buyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Buy Stock - <span id="buyCompanyName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Price per share: $<span id="buyPricePerShare">0.00</span></p>
+                <p>Your cash: $<span id="buyAvailableCash">{{ "%.2f"|format(player.personal_cash) }}</span></p>
+                <div class="mb-3">
+                    <label class="form-label">Number of shares to buy:</label>
+                    <input type="number" class="form-control" id="buyShares" min="1" value="10" oninput="updateBuyCost()">
+                </div>
+                <div class="alert alert-info">
+                    <strong>Total cost:</strong> $<span id="buyCost">0.00</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="buyBtn" onclick="executeBuy()">
+                    <i class="bi bi-cart-plus"></i> Buy Stock
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sell Modal -->
+<div class="modal fade" id="sellModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Sell Stock - <span id="sellCompanyName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Price per share: $<span id="sellPricePerShare">0.00</span></p>
+                <p>Your shares: <span id="sellAvailableShares">0</span></p>
+                <div class="mb-3">
+                    <label class="form-label">Number of shares to sell:</label>
+                    <input type="number" class="form-control" id="sellShares" min="1" value="10" oninput="updateSellRevenue()">
+                </div>
+                <div class="alert alert-success">
+                    <strong>Total revenue:</strong> $<span id="sellRevenue">0.00</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="sellBtn" onclick="executeSell()">
+                    <i class="bi bi-cash"></i> Sell Stock
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let currentBuyCompanyId = null;
+let currentSellCompanyId = null;
+let buyModalInstance = null;
+let sellModalInstance = null;
+let stockHistoryChart = null;
+
+// Initialize modals
+document.addEventListener('DOMContentLoaded', function() {
+    buyModalInstance = new bootstrap.Modal(document.getElementById('buyModal'));
+    sellModalInstance = new bootstrap.Modal(document.getElementById('sellModal'));
+
+    // Load stock history chart
+    loadStockHistory();
+});
+
+// Load and display stock price history
+async function loadStockHistory() {
+    try {
+        const response = await fetch('/api/stock/history');
+        const data = await response.json();
+
+        if (data.success) {
+            renderStockHistoryChart(data.history);
+        }
+    } catch (error) {
+        console.error('Failed to load stock history:', error);
+    }
+}
+
+// Render stock history chart
+function renderStockHistoryChart(history) {
+    const ctx = document.getElementById('stockHistoryChart').getContext('2d');
+
+    // Prepare datasets for each company
+    const datasets = [];
+    const colors = [
+        '#0d6efd', '#198754', '#dc3545', '#ffc107', '#0dcaf0',
+        '#6610f2', '#d63384', '#fd7e14', '#20c997', '#6f42c1'
+    ];
+
+    let colorIndex = 0;
+    for (const [companyId, companyData] of Object.entries(history)) {
+        const color = colors[colorIndex % colors.length];
+
+        datasets.push({
+            label: companyData.company_name,
+            data: companyData.data.map(d => ({ x: d.week, y: d.stock_price })),
+            borderColor: color,
+            backgroundColor: color + '20',
+            borderWidth: 2,
+            tension: 0.1,
+            fill: false
+        });
+
+        colorIndex++;
+    }
+
+    // Destroy existing chart if it exists
+    if (stockHistoryChart) {
+        stockHistoryChart.destroy();
+    }
+
+    // Create new chart
+    stockHistoryChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Week'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Stock Price ($)'
+                    },
+                    beginAtZero: false
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            }
+        }
+    });
+}
+
+// Show buy modal
+function showBuyModal(companyId, companyName, stockPrice) {
+    currentBuyCompanyId = companyId;
+    document.getElementById('buyCompanyName').textContent = companyName;
+    document.getElementById('buyPricePerShare').textContent = stockPrice.toFixed(2);
+    document.getElementById('buyShares').value = 10;
+    updateBuyCost();
+    buyModalInstance.show();
+}
+
+// Show sell modal
+function showSellModal(companyId, companyName, stockPrice, availableShares) {
+    currentSellCompanyId = companyId;
+    document.getElementById('sellCompanyName').textContent = companyName;
+    document.getElementById('sellPricePerShare').textContent = stockPrice.toFixed(2);
+    document.getElementById('sellAvailableShares').textContent = availableShares;
+    document.getElementById('sellShares').max = availableShares;
+    document.getElementById('sellShares').value = Math.min(10, availableShares);
+    updateSellRevenue();
+    sellModalInstance.show();
+}
+
+// Update buy cost calculation
+function updateBuyCost() {
+    const shares = parseInt(document.getElementById('buyShares').value) || 0;
+    const price = parseFloat(document.getElementById('buyPricePerShare').textContent) || 0;
+    const cost = shares * price;
+
+    document.getElementById('buyCost').textContent = cost.toFixed(2);
+
+    // Check if player has enough cash
+    const availableCash = {{ player.personal_cash }};
+    const buyBtn = document.getElementById('buyBtn');
+
+    if (cost > availableCash) {
+        buyBtn.disabled = true;
+        document.getElementById('buyCost').parentElement.classList.remove('alert-info');
+        document.getElementById('buyCost').parentElement.classList.add('alert-danger');
+    } else {
+        buyBtn.disabled = false;
+        document.getElementById('buyCost').parentElement.classList.remove('alert-danger');
+        document.getElementById('buyCost').parentElement.classList.add('alert-info');
+    }
+}
+
+// Update sell revenue calculation
+function updateSellRevenue() {
+    const shares = parseInt(document.getElementById('sellShares').value) || 0;
+    const price = parseFloat(document.getElementById('sellPricePerShare').textContent) || 0;
+    const revenue = shares * price;
+
+    document.getElementById('sellRevenue').textContent = revenue.toFixed(2);
+
+    // Check if shares are valid
+    const availableShares = parseInt(document.getElementById('sellAvailableShares').textContent) || 0;
+    const sellBtn = document.getElementById('sellBtn');
+
+    if (shares > availableShares || shares <= 0) {
+        sellBtn.disabled = true;
+    } else {
+        sellBtn.disabled = false;
+    }
+}
+
+// Execute buy transaction
+async function executeBuy() {
+    const shares = parseInt(document.getElementById('buyShares').value);
+
+    if (!shares || shares <= 0) {
+        showAlert('Please enter a valid number of shares', 'warning');
+        return;
+    }
+
+    document.getElementById('buyBtn').disabled = true;
+
+    try {
+        const response = await fetch('/api/stock/buy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                company_id: currentBuyCompanyId,
+                shares: shares
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showAlert(result.message || 'Stock purchased successfully!', 'success');
+            buyModalInstance.hide();
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showAlert(result.message || 'Failed to purchase stock', 'danger');
+            document.getElementById('buyBtn').disabled = false;
+        }
+    } catch (error) {
+        showAlert('Error purchasing stock: ' + error.message, 'danger');
+        document.getElementById('buyBtn').disabled = false;
+    }
+}
+
+// Execute sell transaction
+async function executeSell() {
+    const shares = parseInt(document.getElementById('sellShares').value);
+
+    if (!shares || shares <= 0) {
+        showAlert('Please enter a valid number of shares', 'warning');
+        return;
+    }
+
+    document.getElementById('sellBtn').disabled = true;
+
+    try {
+        const response = await fetch('/api/stock/sell', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                company_id: currentSellCompanyId,
+                shares: shares
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showAlert(result.message || 'Stock sold successfully!', 'success');
+            sellModalInstance.hide();
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showAlert(result.message || 'Failed to sell stock', 'danger');
+            document.getElementById('sellBtn').disabled = false;
+        }
+    } catch (error) {
+        showAlert('Error selling stock: ' + error.message, 'danger');
+        document.getElementById('sellBtn').disabled = false;
+    }
+}
+</script>
 {% endblock %}

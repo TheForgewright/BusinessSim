@@ -167,10 +167,16 @@ def market():
     # Get player's portfolio
     wealth = stock_market.get_player_total_wealth(player)
 
+    # Get player's stock ownership for each company
+    ownerships = {}
+    for ownership in StockOwnership.query.filter_by(player_id=player.id).all():
+        ownerships[ownership.company_id] = ownership.shares_owned
+
     return render_template('student/market.html',
                           player=player,
                           companies=companies,
-                          wealth=wealth)
+                          wealth=wealth,
+                          ownerships=ownerships)
 
 
 @bp.route('/portfolio')

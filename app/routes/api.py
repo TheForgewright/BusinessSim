@@ -3,7 +3,7 @@ API Routes
 JSON API endpoints for AJAX calls
 """
 from flask import Blueprint, jsonify, request, session
-from app.models import Company, Player, Facility, Debt, Product, Tag, Game
+from app.models import Company, Player, Facility, Debt, Product, Tag, Game, StockPriceHistory, StockOwnership
 from app.game_engine import (
     stock_market,
     debt_management,
@@ -785,7 +785,6 @@ def company_ipo():
     company.dividend_rate = dividend_rate
 
     # Update owner's stock ownership to reflect total shares
-    from app.models import StockOwnership
     ownership = StockOwnership.query.filter_by(
         company_id=company_id,
         player_id=player.id
@@ -812,4 +811,45 @@ def company_ipo():
         'total_shares': total_shares,
         'dividend_rate': dividend_rate,
         'ipo_week': company.ipo_week
+    })
+
+
+@bp.route('/stock/history')
+def stock_history():
+    """Get stock price history for all companies (public data)"""
+    # Get optional filters
+    game_id = request.args.get('game_id', type=int)
+    company_id = request.args.get('company_id', type=int)
+
+    # Build query
+    query = StockPriceHistory.query
+
+    if game_id:
+        query = query.join(Company).filter(Company.game_id == game_id)
+
+    if company_id:
+        query = query.filter(StockPriceHistory.company_id == company_id)
+
+    # Order by week
+    history = query.order_by(StockPriceHistory.week).all()
+
+    # Group by company for easier charting
+    history_by_company = {}
+    for entry in history:
+        if entry.company_id not in history_by_company:
+            company = Company.query.get(entry.company_id)
+            history_by_company[entry.company_id] = {
+                'company_name': company.name if company else 'Unknown',
+                'data': []
+            }
+
+        history_by_company[entry.company_id]['data'].append({
+            'week': entry.week,
+            'stock_price': entry.stock_price,
+            'recorded_at': entry.recorded_at.isoformat() if entry.recorded_at else None
+        })
+
+    return jsonify({
+        'success': True,
+        'history': history_by_company
     })
