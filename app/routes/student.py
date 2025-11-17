@@ -287,3 +287,58 @@ def ipo(company_id):
         return redirect(url_for('student.company_view', company_id=company_id))
 
     return render_template('student/ipo.html', company=company)
+
+
+@bp.route('/company/<int:company_id>/governance')
+def governance(company_id):
+    """View governance proposals"""
+    auth_check = require_student()
+    if auth_check:
+        return auth_check
+
+    company = Company.query.get_or_404(company_id)
+    player = Player.query.get(session['player_id'])
+
+    if not company.has_ipo:
+        flash('Company must be public to use governance features', 'error')
+        return redirect(url_for('student.company_view', company_id=company_id))
+
+    # Get player's ownership
+    ownership = StockOwnership.query.filter_by(
+        company_id=company_id,
+        player_id=player.id
+    ).first()
+
+    from app.models import GovernanceProposal
+    proposals = GovernanceProposal.query.filter_by(company_id=company_id).order_by(GovernanceProposal.week_created.desc()).all()
+
+    return render_template('student/governance.html',
+                          company=company,
+                          player=player,
+                          ownership=ownership,
+                          proposals=proposals)
+
+
+@bp.route('/company/<int:company_id>/governance/create')
+def create_governance_proposal(company_id):
+    """Create a governance proposal"""
+    auth_check = require_student()
+    if auth_check:
+        return auth_check
+
+    company = Company.query.get_or_404(company_id)
+    player = Player.query.get(session['player_id'])
+
+    if company.owner_id != player.id:
+        flash('You do not own this company', 'error')
+        return redirect(url_for('student.dashboard'))
+
+    if not company.has_ipo:
+        flash('Company must be public to create governance proposals', 'error')
+        return redirect(url_for('student.company_view', company_id=company_id))
+
+    game = company.game
+
+    return render_template('student/create_governance_proposal.html',
+                          company=company,
+                          game=game)

@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Governance - {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Governance & Voting</h1>
+<p class="lead">Company: {{ company.name }}</p>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Your Voting Power</h5>
+                {% if company.owner_id == player.id %}
+                    <a href="{{ url_for('student.create_governance_proposal', company_id=company.id) }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-circle"></i> Create Proposal
+                    </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <strong>Your Shares:</strong> {{ ownership.shares_owned if ownership else 0 }}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Total Shares:</strong> {{ company.total_shares }}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Your Voting Power:</strong>
+                        {% if ownership %}
+                            {{ "%.1f"|format((ownership.shares_owned / company.total_shares) * 100) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Stock Price:</strong> ${{ "%.2f"|format(company.stock_price) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Proposals -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5><i class="bi bi-file-earmark-text"></i> Active Proposals</h5>
+    </div>
+    <div class="card-body">
+        {% set active_proposals = proposals | selectattr('status', 'equalto', 'active') | list %}
+        {% if active_proposals %}
+            {% for proposal in active_proposals %}
+                <div class="card mb-3 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">{{ proposal.title }}</h6>
+                            <span class="badge bg-light text-dark">{{ proposal.proposal_type.replace('_', ' ').title() }}</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">{{ proposal.description }}</p>
+
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <small class="text-muted">Difficulty:</small>
+                                <strong>{{ proposal.difficulty }}/10</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">Required Approval:</small>
+                                <strong>{{ "%.1f"|format(proposal.required_percent) }}%</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">Week Created:</small>
+                                <strong>{{ proposal.week_created }}</strong>
+                            </div>
+                        </div>
+
+                        <!-- Voting Progress -->
+                        {% set total_votes = proposal.votes_for + proposal.votes_against %}
+                        {% set approval_pct = (proposal.votes_for / total_votes * 100) if total_votes > 0 else 0 %}
+
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span><small>Votes For: <strong>{{ proposal.votes_for }}</strong></small></span>
+                                <span><small>Votes Against: <strong>{{ proposal.votes_against }}</strong></small></span>
+                            </div>
+                            <div class="progress" style="height: 25px;">
+                                <div class="progress-bar bg-success" role="progressbar"
+                                     style="width: {{ approval_pct }}%"
+                                     aria-valuenow="{{ approval_pct }}" aria-valuemin="0" aria-valuemax="100">
+                                    {{ "%.1f"|format(approval_pct) }}% For
+                                </div>
+                                <div class="progress-bar bg-danger" role="progressbar"
+                                     style="width: {{ 100 - approval_pct }}%"
+                                     aria-valuenow="{{ 100 - approval_pct }}" aria-valuemin="0" aria-valuemax="100">
+                                    {{ "%.1f"|format(100 - approval_pct) }}% Against
+                                </div>
+                            </div>
+                            <div class="text-center mt-1">
+                                <small class="text-muted">
+                                    {% if approval_pct >= proposal.required_percent %}
+                                        <span class="text-success"><i class="bi bi-check-circle"></i> Currently passing</span>
+                                    {% else %}
+                                        <span class="text-danger"><i class="bi bi-x-circle"></i> Currently failing</span>
+                                    {% endif %}
+                                    (need {{ "%.1f"|format(proposal.required_percent) }}%)
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Voting Buttons -->
+                        {% if ownership and ownership.shares_owned > 0 %}
+                            <div class="mt-3 d-flex gap-2">
+                                <button class="btn btn-success" onclick="vote({{ proposal.id }}, 'for')">
+                                    <i class="bi bi-hand-thumbs-up"></i> Vote For
+                                </button>
+                                <button class="btn btn-danger" onclick="vote({{ proposal.id }}, 'against')">
+                                    <i class="bi bi-hand-thumbs-down"></i> Vote Against
+                                </button>
+                                <button class="btn btn-secondary" onclick="vote({{ proposal.id }}, 'abstain')">
+                                    <i class="bi bi-dash-circle"></i> Abstain
+                                </button>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning mt-3 mb-0">
+                                You must own shares to vote on this proposal.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i> No active proposals at this time.
+                {% if company.owner_id == player.id %}
+                    <a href="{{ url_for('student.create_governance_proposal', company_id=company.id) }}">Create one</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Past Proposals -->
+<div class="card">
+    <div class="card-header">
+        <h5><i class="bi bi-archive"></i> Past Proposals</h5>
+    </div>
+    <div class="card-body">
+        {% set past_proposals = proposals | rejectattr('status', 'equalto', 'active') | list %}
+        {% if past_proposals %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Week</th>
+                            <th>Status</th>
+                            <th>For / Against</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for proposal in past_proposals %}
+                            {% set total_votes = proposal.votes_for + proposal.votes_against %}
+                            {% set approval_pct = (proposal.votes_for / total_votes * 100) if total_votes > 0 else 0 %}
+                            <tr>
+                                <td>{{ proposal.title }}</td>
+                                <td><span class="badge bg-secondary">{{ proposal.proposal_type.replace('_', ' ').title() }}</span></td>
+                                <td>{{ proposal.week_created }}</td>
+                                <td>
+                                    {% if proposal.status == 'passed' %}
+                                        <span class="badge bg-success">Passed</span>
+                                    {% elif proposal.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                    {% elif proposal.status == 'executed' %}
+                                        <span class="badge bg-info">Executed</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ proposal.status.title() }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ proposal.votes_for }} / {{ proposal.votes_against }}</td>
+                                <td>{{ "%.1f"|format(approval_pct) }}% approval</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted mb-0">No past proposals.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function vote(proposalId, direction) {
+    if (!confirm(`Are you sure you want to vote "${direction}" on this proposal?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/governance/proposal/${proposalId}/vote`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                vote_direction: direction
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showAlert(result.message, 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showAlert(result.message, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error voting: ' + error.message, 'danger');
+    }
+}
+</script>
+{% endblock %}

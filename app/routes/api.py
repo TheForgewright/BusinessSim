@@ -3,7 +3,7 @@ API Routes
 JSON API endpoints for AJAX calls
 """
 from flask import Blueprint, jsonify, request, session
-from app.models import Company, Player, Facility, Debt, Product, Tag, Game, StockPriceHistory, StockOwnership
+from app.models import Company, Player, Facility, Debt, Product, Tag, Game, StockPriceHistory, StockOwnership, GovernanceProposal, GovernanceVote
 from app.game_engine import (
     stock_market,
     debt_management,
@@ -852,4 +852,249 @@ def stock_history():
     return jsonify({
         'success': True,
         'history': history_by_company
+    })
+
+
+@bp.route('/governance/proposal/create', methods=['POST'])
+def create_governance_proposal():
+    """Create a governance proposal (stock split, dividend change, etc.)"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    company_id = data.get('company_id')
+    proposal_type = data.get('proposal_type')
+    title = data.get('title')
+    description = data.get('description')
+    difficulty = data.get('difficulty', 5)
+    influence_spent = data.get('influence_spent', 0.0)
+    proposal_data = data.get('proposal_data', {})
+
+    if not company_id or not proposal_type or not title:
+        return jsonify({'success': False, 'message': 'Missing required fields'}), 400
+
+    company = Company.query.get_or_404(company_id)
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    if not company.has_ipo:
+        return jsonify({'success': False, 'message': 'Company must be public to create governance proposals'}), 400
+
+    # Validate difficulty range
+    if difficulty < 1 or difficulty > 10:
+        return jsonify({'success': False, 'message': 'Difficulty must be between 1 and 10'}), 400
+
+    # Deduct influence if spending any
+    if influence_spent > 0:
+        if company.influence_active < influence_spent:
+            return jsonify({'success': False, 'message': 'Insufficient influence'}), 400
+        company.influence_active -= influence_spent
+
+    # Calculate required approval percentage
+    game = company.game
+    base = game.governance_base_threshold
+    difficulty_mod = game.governance_difficulty_modifier
+    influence_mod = game.governance_influence_modifier
+
+    required_percent = base - (difficulty_mod * difficulty) + (influence_mod * influence_spent)
+    required_percent = max(0, min(100, required_percent))  # Clamp to 0-100
+
+    # Get total eligible shares (all shares not owned by company owner)
+    total_shares = company.total_shares
+    owner_shares = StockOwnership.query.filter_by(
+        company_id=company_id,
+        player_id=player.id
+    ).first()
+
+    eligible_shares = total_shares
+    if owner_shares:
+        eligible_shares = total_shares - owner_shares.shares_owned
+
+    proposal = GovernanceProposal(
+        company_id=company_id,
+        proposal_type=proposal_type,
+        title=title,
+        description=description,
+        difficulty=difficulty,
+        influence_spent=influence_spent,
+        required_percent=required_percent,
+        total_eligible_shares=eligible_shares,
+        proposal_data_json=json.dumps(proposal_data),
+        created_by_player_id=player.id,
+        week_created=game.current_week,
+        status='active'
+    )
+
+    db.session.add(proposal)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': f'Governance proposal "{title}" created',
+        'proposal_id': proposal.id,
+        'required_percent': required_percent,
+        'eligible_shares': eligible_shares
+    })
+
+
+@bp.route('/governance/proposal/<int:proposal_id>/vote', methods=['POST'])
+def vote_on_proposal(proposal_id):
+    """Vote on a governance proposal"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    proposal = GovernanceProposal.query.get_or_404(proposal_id)
+    company = proposal.company
+
+    if proposal.status != 'active':
+        return jsonify({'success': False, 'message': 'Proposal is not active'}), 400
+
+    data = request.get_json()
+    vote_direction = data.get('vote_direction')  # 'for', 'against', 'abstain'
+
+    if vote_direction not in ['for', 'against', 'abstain']:
+        return jsonify({'success': False, 'message': 'Invalid vote direction'}), 400
+
+    # Get player's shares in this company
+    ownership = StockOwnership.query.filter_by(
+        company_id=company.id,
+        player_id=player.id
+    ).first()
+
+    if not ownership or ownership.shares_owned <= 0:
+        return jsonify({'success': False, 'message': 'You do not own shares in this company'}), 403
+
+    # Check if player already voted
+    existing_vote = GovernanceVote.query.filter_by(
+        proposal_id=proposal_id,
+        player_id=player.id
+    ).first()
+
+    if existing_vote:
+        # Update existing vote
+        # Remove old vote from counts
+        if existing_vote.vote_direction == 'for':
+            proposal.votes_for -= existing_vote.shares_voted
+        elif existing_vote.vote_direction == 'against':
+            proposal.votes_against -= existing_vote.shares_voted
+
+        # Update vote
+        existing_vote.vote_direction = vote_direction
+        existing_vote.shares_voted = ownership.shares_owned
+
+        # Add new vote to counts
+        if vote_direction == 'for':
+            proposal.votes_for += ownership.shares_owned
+        elif vote_direction == 'against':
+            proposal.votes_against += ownership.shares_owned
+
+        message = 'Vote updated'
+    else:
+        # Create new vote
+        vote = GovernanceVote(
+            proposal_id=proposal_id,
+            player_id=player.id,
+            shares_voted=ownership.shares_owned,
+            vote_direction=vote_direction
+        )
+        db.session.add(vote)
+
+        # Update vote counts
+        if vote_direction == 'for':
+            proposal.votes_for += ownership.shares_owned
+        elif vote_direction == 'against':
+            proposal.votes_against += ownership.shares_owned
+
+        message = 'Vote recorded'
+
+    db.session.commit()
+
+    # Calculate current approval percentage
+    total_voted = proposal.votes_for + proposal.votes_against
+    approval_percent = (proposal.votes_for / total_voted * 100) if total_voted > 0 else 0
+
+    return jsonify({
+        'success': True,
+        'message': message,
+        'votes_for': proposal.votes_for,
+        'votes_against': proposal.votes_against,
+        'approval_percent': approval_percent,
+        'required_percent': proposal.required_percent
+    })
+
+
+@bp.route('/governance/proposal/<int:proposal_id>')
+def get_proposal(proposal_id):
+    """Get details of a governance proposal"""
+    proposal = GovernanceProposal.query.get_or_404(proposal_id)
+
+    # Get current player's vote if any
+    player = get_current_player()
+    player_vote = None
+    if player:
+        vote = GovernanceVote.query.filter_by(
+            proposal_id=proposal_id,
+            player_id=player.id
+        ).first()
+        if vote:
+            player_vote = vote.vote_direction
+
+    # Calculate approval percentage
+    total_voted = proposal.votes_for + proposal.votes_against
+    approval_percent = (proposal.votes_for / total_voted * 100) if total_voted > 0 else 0
+
+    return jsonify({
+        'success': True,
+        'proposal': {
+            'id': proposal.id,
+            'company_id': proposal.company_id,
+            'proposal_type': proposal.proposal_type,
+            'title': proposal.title,
+            'description': proposal.description,
+            'difficulty': proposal.difficulty,
+            'influence_spent': proposal.influence_spent,
+            'required_percent': proposal.required_percent,
+            'votes_for': proposal.votes_for,
+            'votes_against': proposal.votes_against,
+            'total_eligible_shares': proposal.total_eligible_shares,
+            'approval_percent': approval_percent,
+            'status': proposal.status,
+            'proposal_data': json.loads(proposal.proposal_data_json) if proposal.proposal_data_json else {},
+            'week_created': proposal.week_created,
+            'player_vote': player_vote
+        }
+    })
+
+
+@bp.route('/company/<int:company_id>/governance/proposals')
+def get_company_proposals(company_id):
+    """Get all governance proposals for a company"""
+    company = Company.query.get_or_404(company_id)
+    proposals = GovernanceProposal.query.filter_by(company_id=company_id).order_by(GovernanceProposal.week_created.desc()).all()
+
+    proposal_list = []
+    for proposal in proposals:
+        total_voted = proposal.votes_for + proposal.votes_against
+        approval_percent = (proposal.votes_for / total_voted * 100) if total_voted > 0 else 0
+
+        proposal_list.append({
+            'id': proposal.id,
+            'proposal_type': proposal.proposal_type,
+            'title': proposal.title,
+            'description': proposal.description,
+            'difficulty': proposal.difficulty,
+            'required_percent': proposal.required_percent,
+            'votes_for': proposal.votes_for,
+            'votes_against': proposal.votes_against,
+            'approval_percent': approval_percent,
+            'status': proposal.status,
+            'week_created': proposal.week_created
+        })
+
+    return jsonify({
+        'success': True,
+        'proposals': proposal_list
     })

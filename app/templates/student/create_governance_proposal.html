@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Create Governance Proposal - {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Create Governance Proposal</h1>
+<p class="lead">Company: {{ company.name }}</p>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>New Proposal</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>Governance System:</strong> Shareholders vote on major company decisions.
+                    The approval threshold depends on proposal difficulty and influence spent.
+                </div>
+
+                <form id="proposalForm">
+                    <div class="mb-3">
+                        <label for="proposalType" class="form-label">Proposal Type</label>
+                        <select class="form-select" id="proposalType" name="proposal_type" required onchange="updateProposalFields()">
+                            <option value="">-- Select Type --</option>
+                            <option value="stock_split">Stock Split</option>
+                            <option value="dividend_change">Dividend Rate Change</option>
+                            <option value="custom">Custom Proposal</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Proposal Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required
+                               placeholder="e.g., 2-for-1 Stock Split">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" required
+                                  placeholder="Explain what this proposal will do and why shareholders should support it"></textarea>
+                    </div>
+
+                    <!-- Stock Split specific fields -->
+                    <div id="stockSplitFields" style="display: none;">
+                        <div class="mb-3">
+                            <label for="splitRatio" class="form-label">Split Ratio</label>
+                            <select class="form-select" id="splitRatio">
+                                <option value="2">2-for-1 (Double shares, half price)</option>
+                                <option value="3">3-for-1 (Triple shares, third price)</option>
+                                <option value="0.5">1-for-2 Reverse Split (Half shares, double price)</option>
+                            </select>
+                            <small class="text-muted">Current shares: {{ company.total_shares }}</small>
+                        </div>
+                    </div>
+
+                    <!-- Dividend Change specific fields -->
+                    <div id="dividendFields" style="display: none;">
+                        <div class="mb-3">
+                            <label for="newDividendRate" class="form-label">New Dividend Per Share ($)</label>
+                            <input type="number" class="form-control" id="newDividendRate" min="0" max="100" step="0.01"
+                                   value="{{ company.dividend_rate }}">
+                            <small class="text-muted">Current: ${{ "%.2f"|format(company.dividend_rate) }}/share/week</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="difficulty" class="form-label">Proposal Difficulty (1-10)</label>
+                        <input type="range" class="form-range" id="difficulty" name="difficulty"
+                               min="1" max="10" value="5" oninput="updateThreshold()">
+                        <div class="d-flex justify-content-between">
+                            <small>1 (Easy)</small>
+                            <strong id="difficultyValue">5</strong>
+                            <small>10 (Hard)</small>
+                        </div>
+                        <small class="text-muted">Higher difficulty = lower approval threshold needed</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="influenceSpent" class="form-label">Influence to Spend</label>
+                        <input type="number" class="form-control" id="influenceSpent" name="influence_spent"
+                               min="0" max="{{ company.influence_active }}" step="1" value="0" oninput="updateThreshold()">
+                        <small class="text-muted">Available: {{ company.influence_active }} influence</small>
+                    </div>
+
+                    <div class="alert alert-success">
+                        <strong>Required Approval:</strong> <span id="requiredPercent">60.0</span>%
+                        <br>
+                        <small class="text-muted">
+                            Formula: {{ game.governance_base_threshold }}% -
+                            ({{ game.governance_difficulty_modifier }}% × difficulty) +
+                            ({{ game.governance_influence_modifier }}% × influence)
+                        </small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="createBtn">Create Proposal</button>
+                    <a href="{{ url_for('student.governance', company_id=company.id) }}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6>Company Status</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Total Shares:</strong> {{ company.total_shares }}</p>
+                <p><strong>Dividend Rate:</strong> ${{ "%.2f"|format(company.dividend_rate) }}/share</p>
+                <p><strong>Stock Price:</strong> ${{ "%.2f"|format(company.stock_price) }}</p>
+                <p><strong>Influence:</strong> {{ company.influence_active }}</p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6>Governance Settings</h6>
+            </div>
+            <div class="card-body">
+                <p><small><strong>Base Threshold:</strong> {{ game.governance_base_threshold }}%</small></p>
+                <p><small><strong>Difficulty Modifier:</strong> {{ game.governance_difficulty_modifier }}%</small></p>
+                <p><small><strong>Influence Modifier:</strong> {{ game.governance_influence_modifier }}%</small></p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6>Tips</h6>
+            </div>
+            <div class="card-body">
+                <ul class="small">
+                    <li>Set difficulty higher to make approval easier</li>
+                    <li>Spend influence to boost approval chances</li>
+                    <li>Only outside shareholders vote (not you)</li>
+                    <li>Proposals require majority approval</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const companyId = {{ company.id }};
+const baseThreshold = {{ game.governance_base_threshold }};
+const difficultyMod = {{ game.governance_difficulty_modifier }};
+const influenceMod = {{ game.governance_influence_modifier }};
+
+// Update proposal-specific fields
+function updateProposalFields() {
+    const type = document.getElementById('proposalType').value;
+
+    document.getElementById('stockSplitFields').style.display = (type === 'stock_split') ? 'block' : 'none';
+    document.getElementById('dividendFields').style.display = (type === 'dividend_change') ? 'block' : 'none';
+}
+
+// Update threshold calculation
+function updateThreshold() {
+    const difficulty = parseInt(document.getElementById('difficulty').value) || 5;
+    const influence = parseFloat(document.getElementById('influenceSpent').value) || 0;
+
+    document.getElementById('difficultyValue').textContent = difficulty;
+
+    const threshold = baseThreshold - (difficultyMod * difficulty) + (influenceMod * influence);
+    const clampedThreshold = Math.max(0, Math.min(100, threshold));
+
+    document.getElementById('requiredPercent').textContent = clampedThreshold.toFixed(1);
+}
+
+// Form submission
+document.getElementById('proposalForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const type = document.getElementById('proposalType').value;
+    const title = document.getElementById('title').value;
+    const description = document.getElementById('description').value;
+    const difficulty = parseInt(document.getElementById('difficulty').value);
+    const influenceSpent = parseFloat(document.getElementById('influenceSpent').value) || 0;
+
+    let proposalData = {};
+
+    if (type === 'stock_split') {
+        proposalData.split_ratio = parseFloat(document.getElementById('splitRatio').value);
+    } else if (type === 'dividend_change') {
+        proposalData.new_dividend_rate = parseFloat(document.getElementById('newDividendRate').value);
+    }
+
+    document.getElementById('createBtn').disabled = true;
+
+    const response = await fetch('/api/governance/proposal/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            company_id: companyId,
+            proposal_type: type,
+            title: title,
+            description: description,
+            difficulty: difficulty,
+            influence_spent: influenceSpent,
+            proposal_data: proposalData
+        })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        showAlert('Proposal created successfully!', 'success');
+        setTimeout(() => {
+            window.location.href = `/student/company/${companyId}/governance`;
+        }, 1500);
+    } else {
+        showAlert(result.message, 'danger');
+        document.getElementById('createBtn').disabled = false;
+    }
+});
+
+// Initial calculation
+updateThreshold();
+</script>
+{% endblock %}
