@@ -696,3 +696,60 @@ def get_facility_products(facility_id):
         'linked_products': linked_product_ids,
         'available_products': [p.to_dict() for p in all_products]
     })
+
+
+@bp.route('/debt/create', methods=['POST'])
+def create_debt():
+    """Create a new debt/loan"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    company_id = data.get('company_id')
+    name = data.get('name')
+    principal = data.get('principal', 0)
+    interest_rate = data.get('interest_rate', 0)
+    compounding_type = data.get('compounding_type', 'monthly')
+    due_date = data.get('due_date')
+    collateral = data.get('collateral')
+    auto_pay = data.get('auto_pay', True)  # Default to True
+
+    if not name or not company_id:
+        return jsonify({'success': False, 'message': 'Missing required fields'}), 400
+
+    if principal < 100:
+        return jsonify({'success': False, 'message': 'Minimum loan amount is $100'}), 400
+
+    company = Company.query.get_or_404(company_id)
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    # Create debt
+    debt = Debt(
+        company_id=company_id,
+        name=name,
+        principal=principal,
+        accrued_interest=0.0,
+        interest_rate=interest_rate,
+        compounding_type=compounding_type,
+        due_date=due_date,
+        collateral=collateral,
+        auto_pay=auto_pay,
+        week_taken=company.game.current_week
+    )
+
+    # Add cash to company
+    company.cash += principal
+
+    db.session.add(debt)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': f'Loan "{name}" created successfully',
+        'debt_id': debt.id,
+        'principal': principal,
+        'new_cash': company.cash
+    })

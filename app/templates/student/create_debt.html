@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Take Out Loan - {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Take Out Loan</h1>
+<p class="lead">Company: {{ company.name }}</p>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Loan Details</h5>
+            </div>
+            <div class="card-body">
+                <form id="createDebtForm">
+                    <div class="mb-3">
+                        <label for="debtName" class="form-label">Loan Name</label>
+                        <input type="text" class="form-control" id="debtName" name="name" required
+                               placeholder="e.g., Expansion Loan, Equipment Financing">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="principal" class="form-label">Loan Amount ($)</label>
+                        <input type="number" class="form-control" id="principal" name="principal"
+                               min="100" step="100" required>
+                        <small class="text-muted">Minimum: $100</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="interestRate" class="form-label">Annual Interest Rate (%)</label>
+                        <input type="number" class="form-control" id="interestRate" name="interest_rate"
+                               min="0" max="100" step="0.1" value="5.0" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="compoundingType" class="form-label">Compounding Frequency</label>
+                        <select class="form-select" id="compoundingType" name="compounding_type">
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly" selected>Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="daily">Daily (Expensive!)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="dueDate" class="form-label">Due Date (Week)</label>
+                        <input type="number" class="form-control" id="dueDate" name="due_date"
+                               min="{{ game.current_week + 1 }}" max="{{ game.total_weeks }}"
+                               placeholder="Optional - leave blank for no due date">
+                        <small class="text-muted">Current week: {{ game.current_week }}</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="collateral" class="form-label">Collateral (Optional)</label>
+                        <input type="text" class="form-control" id="collateral" name="collateral"
+                               placeholder="e.g., Equipment, IP, Real Estate">
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Auto-Pay Enabled:</strong> This loan will automatically deduct payments from your cash when possible, respecting your cash reserve.
+                        {% if game_settings and game_settings.get('allow_debt_autopay_toggle') %}
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" id="autoPay" name="auto_pay" checked>
+                            <label class="form-check-label" for="autoPay">
+                                Enable Auto-Pay
+                            </label>
+                        </div>
+                        {% else %}
+                        <br><small class="text-muted">(Professor has locked auto-pay to ON for all loans)</small>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="createBtn">Take Out Loan</button>
+                    <a href="{{ url_for('student.company_view', company_id=company.id) }}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6>Current Financial Status</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Cash:</strong> ${{ "%.2f"|format(company.cash) }}</p>
+                <p><strong>Equity:</strong> ${{ "%.2f"|format(company.current_equity) }}</p>
+                <p><strong>Existing Debt:</strong> ${{ "%.2f"|format(company.get_total_debt()) }}</p>
+                <p><strong>Cash Reserve:</strong> ${{ "%.2f"|format(company.cash_reserve) }}</p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6>Estimated Interest</h6>
+            </div>
+            <div class="card-body">
+                <p id="estimatedInterest" class="text-muted">Enter loan amount to see estimate</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const companyId = {{ company.id }};
+
+// Calculate estimated interest
+document.getElementById('principal').addEventListener('input', updateEstimate);
+document.getElementById('interestRate').addEventListener('input', updateEstimate);
+document.getElementById('compoundingType').addEventListener('change', updateEstimate);
+
+function updateEstimate() {
+    const principal = parseFloat(document.getElementById('principal').value) || 0;
+    const rate = parseFloat(document.getElementById('interestRate').value) || 0;
+    const compounding = document.getElementById('compoundingType').value;
+
+    if (principal > 0 && rate > 0) {
+        const weeklyRate = rate / 100 / 52;
+        const estimatedWeekly = principal * weeklyRate;
+
+        let message = `<strong>Weekly Interest (approx):</strong> $${estimatedWeekly.toFixed(2)}<br>`;
+        message += `<strong>Monthly Interest (approx):</strong> $${(estimatedWeekly * 4.33).toFixed(2)}`;
+
+        document.getElementById('estimatedInterest').innerHTML = message;
+    } else {
+        document.getElementById('estimatedInterest').innerHTML = '<span class="text-muted">Enter loan amount to see estimate</span>';
+    }
+}
+
+// Form submission
+document.getElementById('createDebtForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = {
+        company_id: companyId,
+        name: document.getElementById('debtName').value,
+        principal: parseFloat(document.getElementById('principal').value),
+        interest_rate: parseFloat(document.getElementById('interestRate').value),
+        compounding_type: document.getElementById('compoundingType').value,
+        due_date: document.getElementById('dueDate').value ? parseInt(document.getElementById('dueDate').value) : null,
+        collateral: document.getElementById('collateral').value || null,
+        auto_pay: {% if game_settings and game_settings.get('allow_debt_autopay_toggle') %}document.getElementById('autoPay').checked{% else %}true{% endif %}
+    };
+
+    if (formData.principal < 100) {
+        showAlert('Loan amount must be at least $100', 'warning');
+        return;
+    }
+
+    document.getElementById('createBtn').disabled = true;
+
+    const response = await fetch('/api/debt/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(formData)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        showAlert('Loan created successfully! Cash has been added to your account.', 'success');
+        setTimeout(() => {
+            window.location.href = `/student/company/${companyId}`;
+        }, 1500);
+    } else {
+        showAlert(result.message, 'danger');
+        document.getElementById('createBtn').disabled = false;
+    }
+});
+</script>
+{% endblock %}

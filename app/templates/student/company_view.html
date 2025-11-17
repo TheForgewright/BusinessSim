@@ -283,8 +283,9 @@
 <div class="row mt-4">
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header">
-                <h5>Debts</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Debts & Loans</h5>
+                <a href="{{ url_for('student.create_debt', company_id=company.id) }}" class="btn btn-warning btn-sm">Take Out Loan</a>
             </div>
             <div class="card-body">
                 {% if company.debts %}

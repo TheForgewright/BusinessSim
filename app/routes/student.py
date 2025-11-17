@@ -240,3 +240,23 @@ def create_product(company_id):
     tags = Tag.query.filter_by(game_id=company.game_id).all()
 
     return render_template('student/create_product.html', company=company, tags=tags)
+
+
+@bp.route('/company/<int:company_id>/create_debt')
+def create_debt(company_id):
+    """Create a new debt/loan"""
+    auth_check = require_student()
+    if auth_check:
+        return auth_check
+
+    company = Company.query.get_or_404(company_id)
+    player = Player.query.get(session['player_id'])
+
+    if company.owner_id != player.id:
+        flash('You do not own this company', 'error')
+        return redirect(url_for('student.dashboard'))
+
+    game = company.game
+    game_settings = {}  # TODO: Add professor settings for allow_debt_autopay_toggle
+
+    return render_template('student/create_debt.html', company=company, game=game, game_settings=game_settings)
