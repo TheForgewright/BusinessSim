@@ -5,10 +5,21 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h1 class="mb-0">{{ company.name }}</h1>
+        <h1 class="mb-0">{{ company.name }}
+            {% if company.has_ipo %}
+                <span class="badge bg-success">PUBLIC</span>
+            {% else %}
+                <span class="badge bg-secondary">PRIVATE</span>
+            {% endif %}
+        </h1>
         <p class="lead mb-0">Week {{ company.game.current_week }} / {{ company.game.total_weeks }}</p>
     </div>
     <div>
+        {% if not company.has_ipo %}
+            <a href="{{ url_for('student.ipo', company_id=company.id) }}" class="btn btn-success me-2">
+                🏦 Launch IPO
+            </a>
+        {% endif %}
         <a href="{{ url_for('student.analytics', company_id=company.id) }}" class="btn btn-info">
             📊 View Analytics
         </a>

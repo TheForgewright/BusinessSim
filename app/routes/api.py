@@ -753,3 +753,63 @@ def create_debt():
         'principal': principal,
         'new_cash': company.cash
     })
+
+
+@bp.route('/company/ipo', methods=['POST'])
+def company_ipo():
+    """Launch company IPO"""
+    player = get_current_player()
+    if not player:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    data = request.get_json()
+    company_id = data.get('company_id')
+    total_shares = data.get('total_shares', 1000)
+    dividend_rate = data.get('dividend_rate', 0.0)
+
+    if not company_id:
+        return jsonify({'success': False, 'message': 'Missing company_id'}), 400
+
+    company = Company.query.get_or_404(company_id)
+
+    if company.owner_id != player.id:
+        return jsonify({'success': False, 'message': 'Not your company'}), 403
+
+    if company.has_ipo:
+        return jsonify({'success': False, 'message': 'Company has already gone public'}), 400
+
+    # Set IPO fields
+    company.has_ipo = True
+    company.ipo_week = company.game.current_week
+    company.total_shares = total_shares
+    company.dividend_rate = dividend_rate
+
+    # Update owner's stock ownership to reflect total shares
+    from app.models import StockOwnership
+    ownership = StockOwnership.query.filter_by(
+        company_id=company_id,
+        player_id=player.id
+    ).first()
+
+    if ownership:
+        ownership.shares_owned = total_shares
+    else:
+        # Create ownership record
+        ownership = StockOwnership(
+            company_id=company_id,
+            player_id=player.id,
+            investor_name=player.username,
+            shares_owned=total_shares,
+            is_npc=False
+        )
+        db.session.add(ownership)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': 'IPO launched successfully!',
+        'total_shares': total_shares,
+        'dividend_rate': dividend_rate,
+        'ipo_week': company.ipo_week
+    })

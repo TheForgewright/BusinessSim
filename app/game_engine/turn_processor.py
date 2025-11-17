@@ -369,10 +369,21 @@ def process_weekly_turn(game, config):
     # Phase 20: Update Stock Prices
     # ====================
     stock_price_summary = []
+    from app.models import StockPriceHistory
+
     for company in companies:
         old_price = company.stock_price
         company.current_equity = company.calculate_equity()
         stock_market.update_company_stock_price(company, config)
+
+        # Record stock price history for charting
+        history_entry = StockPriceHistory(
+            company_id=company.id,
+            week=current_week,
+            stock_price=company.stock_price
+        )
+        db.session.add(history_entry)
+
         stock_price_summary.append({
             'company': company.name,
             'old_price': old_price,
@@ -389,9 +400,39 @@ def process_weekly_turn(game, config):
     # Phase 21: Process Dividends
     # ====================
     dividend_summary = []
-    # TODO: Implement dividend processing (requires dividend declaration by companies)
+    from app.models import StockOwnership, Player
+
+    for company in companies:
+        if company.has_ipo and company.dividend_rate > 0:
+            # Pay dividends to all shareholders
+            ownerships = StockOwnership.query.filter_by(company_id=company.id).all()
+            total_dividend_paid = 0
+
+            for ownership in ownerships:
+                dividend_amount = ownership.shares_owned * company.dividend_rate
+
+                if ownership.player_id:
+                    # Pay to player's personal cash
+                    player = Player.query.get(ownership.player_id)
+                    if player:
+                        player.personal_cash += dividend_amount
+                # NPCs don't get paid (money disappears)
+
+                total_dividend_paid += dividend_amount
+
+            # Deduct total from company cash
+            company.cash -= total_dividend_paid
+
+            dividend_summary.append({
+                'company': company.name,
+                'dividend_rate': company.dividend_rate,
+                'total_paid': total_dividend_paid,
+                'shareholders': len(ownerships)
+            })
+
     phase_summaries['dividends'] = {
-        'message': 'Dividend processing (to be implemented)'
+        'companies_processed': len(dividend_summary),
+        'details': dividend_summary
     }
 
     # ====================

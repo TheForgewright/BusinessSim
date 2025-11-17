@@ -260,3 +260,24 @@ def create_debt(company_id):
     game_settings = {}  # TODO: Add professor settings for allow_debt_autopay_toggle
 
     return render_template('student/create_debt.html', company=company, game=game, game_settings=game_settings)
+
+
+@bp.route('/company/<int:company_id>/ipo')
+def ipo(company_id):
+    """Launch IPO"""
+    auth_check = require_student()
+    if auth_check:
+        return auth_check
+
+    company = Company.query.get_or_404(company_id)
+    player = Player.query.get(session['player_id'])
+
+    if company.owner_id != player.id:
+        flash('You do not own this company', 'error')
+        return redirect(url_for('student.dashboard'))
+
+    if company.has_ipo:
+        flash('Company has already gone public', 'error')
+        return redirect(url_for('student.company_view', company_id=company_id))
+
+    return render_template('student/ipo.html', company=company)

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Initial Public Offering - {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Initial Public Offering (IPO)</h1>
+<p class="lead">Company: {{ company.name }}</p>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Go Public - Set Your Stock Structure</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <strong>Important:</strong> This is a one-time decision! Once you go public:
+                    <ul class="mb-0">
+                        <li>Your total share count is locked</li>
+                        <li>Your dividend rate is set (can only change via governance vote)</li>
+                        <li>Outside investors can buy your stock</li>
+                        <li>Major decisions require shareholder votes</li>
+                    </ul>
+                </div>
+
+                <form id="ipoForm">
+                    <div class="mb-3">
+                        <label for="totalShares" class="form-label">Total Number of Shares</label>
+                        <input type="number" class="form-control" id="totalShares" name="total_shares"
+                               min="100" max="100000000" step="100" value="{{ company.total_shares }}" required>
+                        <small class="text-muted">You will own all shares initially. Recommend: 1,000 - 10,000 shares</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="dividendRate" class="form-label">Dividend Per Share Per Week ($)</label>
+                        <input type="number" class="form-control" id="dividendRate" name="dividend_rate"
+                               min="0" max="100" step="0.01" value="0.00" required>
+                        <small class="text-muted">Paid weekly to all shareholders. Set to 0 for growth company.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Estimated Weekly Dividend Payment</label>
+                        <p class="fs-4" id="estimatedDividend">$0.00</p>
+                        <small class="text-muted">Total cash paid per week to all shareholders</small>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Stock Split:</strong> If you want to change share count later, you'll need to:
+                        <ol class="mb-0">
+                            <li>Create a governance proposal</li>
+                            <li>Spend influence to boost approval chances</li>
+                            <li>Get shareholder approval (difficulty-based threshold)</li>
+                        </ol>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg" id="ipoBtn">Launch IPO</button>
+                    <a href="{{ url_for('student.company_view', company_id=company.id) }}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6>Current Status</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Cash:</strong> ${{ "%.2f"|format(company.cash) }}</p>
+                <p><strong>Equity:</strong> ${{ "%.2f"|format(company.current_equity) }}</p>
+                <p><strong>Current Stock Price:</strong> ${{ "%.2f"|format(company.stock_price) }}</p>
+                <p><strong>Owner:</strong> {{ company.owner.username }}</p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6>IPO Benefits</h6>
+            </div>
+            <div class="card-body">
+                <ul class="small">
+                    <li>Raise capital by selling shares</li>
+                    <li>Attract investors who get voting power</li>
+                    <li>Pay dividends to reward shareholders</li>
+                    <li>Build market reputation</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6>IPO Risks</h6>
+            </div>
+            <div class="card-body">
+                <ul class="small">
+                    <li>Lose some control to shareholders</li>
+                    <li>Dividends reduce cash reserves</li>
+                    <li>Must manage investor expectations</li>
+                    <li>Subject to governance votes</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const companyId = {{ company.id }};
+
+// Update estimated dividend
+function updateEstimate() {
+    const shares = parseInt(document.getElementById('totalShares').value) || 0;
+    const rate = parseFloat(document.getElementById('dividendRate').value) || 0;
+    const weeklyTotal = shares * rate;
+
+    document.getElementById('estimatedDividend').textContent = '$' + weeklyTotal.toFixed(2);
+
+    if (weeklyTotal > {{ company.cash }}) {
+        document.getElementById('estimatedDividend').classList.add('text-danger');
+    } else {
+        document.getElementById('estimatedDividend').classList.remove('text-danger');
+    }
+}
+
+document.getElementById('totalShares').addEventListener('input', updateEstimate);
+document.getElementById('dividendRate').addEventListener('input', updateEstimate);
+
+// Form submission
+document.getElementById('ipoForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const shares = parseInt(document.getElementById('totalShares').value);
+    const dividendRate = parseFloat(document.getElementById('dividendRate').value);
+
+    if (!confirm(`Launch IPO with ${shares.toLocaleString()} shares at $${dividendRate.toFixed(2)} dividend per share? This cannot be undone!`)) {
+        return;
+    }
+
+    document.getElementById('ipoBtn').disabled = true;
+
+    const response = await fetch('/api/company/ipo', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            company_id: companyId,
+            total_shares: shares,
+            dividend_rate: dividendRate
+        })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        showAlert('IPO launched successfully! Your company is now public.', 'success');
+        setTimeout(() => {
+            window.location.href = `/student/company/${companyId}`;
+        }, 2000);
+    } else {
+        showAlert(result.message, 'danger');
+        document.getElementById('ipoBtn').disabled = false;
+    }
+});
+
+// Initial estimate
+updateEstimate();
+</script>
+{% endblock %}
