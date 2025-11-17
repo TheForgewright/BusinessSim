@@ -11,6 +11,19 @@ class Config:
         'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data', 'business_sim.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Email Configuration
+    MAIL_SERVER = os.environ.get('MAIL_SERVER') or 'localhost'
+    MAIL_PORT = int(os.environ.get('MAIL_PORT') or 25)
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', 'on', '1']
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or 'noreply@businesssim.local'
+    MAIL_MAX_EMAILS = None
+    MAIL_ASCII_ATTACHMENTS = False
+
+    # Application URLs
+    APP_URL = os.environ.get('APP_URL') or 'http://localhost:5000'
+
     # Game Settings (Professor Configurable)
     GAME_TOTAL_WEEKS = 50
     GAME_MAX_TURN_ADVANCEMENT = 3  # Students can advance max 3 weeks at once

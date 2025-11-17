@@ -6,6 +6,19 @@
 <h1>Professor Dashboard</h1>
 <p class="lead">Game Management & Control</p>
 
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('professor.participants') }}" class="btn btn-primary">
+                <i class="bi bi-people"></i> Manage Participants
+            </a>
+            <a href="{{ url_for('professor.create_game') }}" class="btn btn-success">
+                <i class="bi bi-plus-circle"></i> Create New Game
+            </a>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-md-12">
         <div class="card">

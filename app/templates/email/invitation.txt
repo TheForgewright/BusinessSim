@@ -1,0 +1,15 @@
+Hello,
+
+You have been invited to participate in the Business Simulation Game!
+
+To get started, please set your password by clicking the link below:
+{{ set_password_url }}
+
+This link will expire in 24 hours.
+
+Once you've set your password, you'll be asked to choose a username on your first login.
+
+If you did not expect this invitation, please ignore this email.
+
+Best regards,
+Business Simulation Game Team

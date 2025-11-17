@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Invite Participant - Business Simulation Game{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Invite New Participant</h3>
+                </div>
+                <div class="card-body">
+                    <p>Send an invitation email to a student to join the simulation.</p>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Student Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required autofocus>
+                            <small class="form-text text-muted">
+                                The student will receive an email with instructions to set their password.
+                            </small>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success">Send Invitation</button>
+                            <a href="{{ url_for('professor.participants') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

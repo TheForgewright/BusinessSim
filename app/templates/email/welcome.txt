@@ -1,0 +1,10 @@
+Welcome to Business Simulation Game, {{ player.username }}!
+
+We're excited to have you join us. Your account has been successfully created.
+
+You can now log in and start participating in the simulation.
+
+If you have any questions or need assistance, please don't hesitate to reach out to your professor.
+
+Best regards,
+Business Simulation Game Team

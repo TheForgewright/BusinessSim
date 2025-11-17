@@ -4,10 +4,12 @@ Flask Application Factory
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_mail import Mail
 from config import config
 
 # Initialize extensions
 db = SQLAlchemy()
+mail = Mail()
 
 
 def create_app(config_name='default'):
@@ -17,6 +19,7 @@ def create_app(config_name='default'):
 
     # Initialize extensions
     db.init_app(app)
+    mail.init_app(app)
     CORS(app)
 
     # Register blueprints

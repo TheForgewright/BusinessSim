@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, session, redirect, url_for, flash,
 from app.models import Game, Company, Player, Event, Tag, FacilityTemplate
 from app import db
 from app.game_engine import turn_processor
+from app.utils.email import send_invitation_email
 from config import config
 
 bp = Blueprint('professor', __name__)
@@ -258,3 +259,113 @@ def analytics(game_id):
                           game=game,
                           companies=companies,
                           selected_companies=selected_companies)
+
+
+@bp.route('/participants')
+def participants():
+    """View and manage all participants"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    # Get all non-professor players
+    participants = Player.query.filter_by(is_professor=False).order_by(Player.created_at.desc()).all()
+
+    return render_template('professor/participants.html', participants=participants)
+
+
+@bp.route('/participants/invite', methods=['GET', 'POST'])
+def invite_participant():
+    """Invite a new participant"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    if request.method == 'POST':
+        email = request.form.get('email')
+
+        if not email:
+            flash('Email is required', 'error')
+            return render_template('professor/invite_participant.html')
+
+        # Check if email already exists
+        existing = Player.query.filter_by(email=email).first()
+        if existing:
+            flash('This email is already registered', 'error')
+            return render_template('professor/invite_participant.html')
+
+        # Create new participant account (without password)
+        player = Player(
+            email=email,
+            is_professor=False,
+            email_verified=False,
+            needs_username_setup=True
+        )
+
+        # Generate verification token for password setup
+        token = player.generate_verification_token()
+
+        db.session.add(player)
+        db.session.commit()
+
+        # Send invitation email
+        send_invitation_email(player, token)
+
+        flash(f'Invitation sent to {email}', 'success')
+        return redirect(url_for('professor.participants'))
+
+    return render_template('professor/invite_participant.html')
+
+
+@bp.route('/participants/<int:participant_id>/resend-invitation', methods=['POST'])
+def resend_invitation(participant_id):
+    """Resend invitation email to a participant"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    participant = Player.query.get_or_404(participant_id)
+
+    if participant.is_professor:
+        flash('Cannot resend invitation to a professor account', 'error')
+        return redirect(url_for('professor.participants'))
+
+    if participant.password_hash:
+        flash('This participant has already set their password', 'info')
+        return redirect(url_for('professor.participants'))
+
+    # Generate new verification token
+    token = participant.generate_verification_token()
+    db.session.commit()
+
+    # Send invitation email
+    send_invitation_email(participant, token)
+
+    flash(f'Invitation resent to {participant.email}', 'success')
+    return redirect(url_for('professor.participants'))
+
+
+@bp.route('/participants/<int:participant_id>/delete', methods=['POST'])
+def delete_participant(participant_id):
+    """Delete a participant account"""
+    auth_check = require_professor()
+    if auth_check:
+        return auth_check
+
+    participant = Player.query.get_or_404(participant_id)
+
+    if participant.is_professor:
+        flash('Cannot delete a professor account', 'error')
+        return redirect(url_for('professor.participants'))
+
+    # Check if participant has companies
+    if participant.companies:
+        flash('Cannot delete participant with active companies', 'error')
+        return redirect(url_for('professor.participants'))
+
+    email = participant.email
+    db.session.delete(participant)
+    db.session.commit()
+
+    flash(f'Participant {email} deleted successfully', 'success')
+    return redirect(url_for('professor.participants'))

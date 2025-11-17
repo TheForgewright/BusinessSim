@@ -1,9 +1,10 @@
 """
 Database Models for Business Simulation Game
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from app import db
 import json
+import secrets
 
 
 class Game(db.Model):
@@ -76,11 +77,25 @@ class Player(db.Model):
     __tablename__ = 'players'
 
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200), nullable=False)
+    username = db.Column(db.String(100), unique=True, nullable=True)  # Nullable until first login
+    email = db.Column(db.String(255), unique=True, nullable=False)  # Required for all users
+    password_hash = db.Column(db.String(200), nullable=True)  # Nullable until password is set
     is_professor = db.Column(db.Boolean, default=False)
     personal_cash = db.Column(db.Float, default=0.0)  # Personal wealth (from dividends, stock sales)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime, nullable=True)
+
+    # Email verification
+    email_verified = db.Column(db.Boolean, default=False)
+    verification_token = db.Column(db.String(100), nullable=True)
+    verification_token_expiry = db.Column(db.DateTime, nullable=True)
+
+    # Password reset
+    password_reset_token = db.Column(db.String(100), nullable=True)
+    password_reset_token_expiry = db.Column(db.DateTime, nullable=True)
+
+    # First login tracking
+    needs_username_setup = db.Column(db.Boolean, default=True)
 
     # Relationships
     companies = db.relationship('Company', backref='owner', lazy=True)
@@ -90,10 +105,57 @@ class Player(db.Model):
         return {
             'id': self.id,
             'username': self.username,
+            'email': self.email,
             'is_professor': self.is_professor,
             'personal_cash': self.personal_cash,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'email_verified': self.email_verified,
+            'needs_username_setup': self.needs_username_setup,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_login': self.last_login.isoformat() if self.last_login else None
         }
+
+    def generate_password_reset_token(self):
+        """Generate a password reset token valid for 1 hour"""
+        self.password_reset_token = secrets.token_urlsafe(32)
+        self.password_reset_token_expiry = datetime.utcnow() + timedelta(hours=1)
+        return self.password_reset_token
+
+    def verify_password_reset_token(self, token):
+        """Check if the password reset token is valid"""
+        if not self.password_reset_token or not self.password_reset_token_expiry:
+            return False
+        if self.password_reset_token != token:
+            return False
+        if datetime.utcnow() > self.password_reset_token_expiry:
+            return False
+        return True
+
+    def clear_password_reset_token(self):
+        """Clear the password reset token after use"""
+        self.password_reset_token = None
+        self.password_reset_token_expiry = None
+
+    def generate_verification_token(self):
+        """Generate an email verification token valid for 24 hours"""
+        self.verification_token = secrets.token_urlsafe(32)
+        self.verification_token_expiry = datetime.utcnow() + timedelta(hours=24)
+        return self.verification_token
+
+    def verify_email_token(self, token):
+        """Check if the email verification token is valid"""
+        if not self.verification_token or not self.verification_token_expiry:
+            return False
+        if self.verification_token != token:
+            return False
+        if datetime.utcnow() > self.verification_token_expiry:
+            return False
+        return True
+
+    def mark_email_verified(self):
+        """Mark email as verified and clear the verification token"""
+        self.email_verified = True
+        self.verification_token = None
+        self.verification_token_expiry = None
 
 
 class Company(db.Model):

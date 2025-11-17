@@ -7,29 +7,31 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">
-                <h3>Create Account</h3>
+                <h3>Professor Registration</h3>
             </div>
             <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>Note:</strong> This registration is for professors only. Students will receive an invitation email from their professor.
+                </div>
                 <form method="POST">
                     <div class="mb-3">
                         <label for="username" class="form-label">Username</label>
                         <input type="text" class="form-control" id="username" name="username" required autofocus>
                     </div>
                     <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                        <small class="form-text text-muted">Minimum 6 characters</small>
                     </div>
                     <div class="mb-3">
                         <label for="confirm_password" class="form-label">Confirm Password</label>
                         <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
                     </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="is_professor" name="is_professor">
-                        <label class="form-check-label" for="is_professor">
-                            Register as Professor (admin account)
-                        </label>
-                    </div>
-                    <button type="submit" class="btn btn-success w-100">Create Account</button>
+                    <button type="submit" class="btn btn-success w-100">Create Professor Account</button>
                 </form>
 
                 <hr>

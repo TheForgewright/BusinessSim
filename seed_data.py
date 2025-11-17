@@ -275,11 +275,14 @@ def create_demo_data():
     if not professor:
         professor = Player(
             username='professor',
+            email='professor@example.com',
             password_hash=generate_password_hash('password'),
-            is_professor=True
+            is_professor=True,
+            email_verified=True,
+            needs_username_setup=False
         )
         db.session.add(professor)
-        print("  ✓ Created demo professor (username: professor, password: password)")
+        print("  ✓ Created demo professor (username: professor, email: professor@example.com, password: password)")
     else:
         print("  - Professor account already exists")
 
@@ -288,12 +291,15 @@ def create_demo_data():
     if not student1:
         student1 = Player(
             username='student',
+            email='student@example.com',
             password_hash=generate_password_hash('password'),
             is_professor=False,
-            personal_cash=1000.0
+            personal_cash=1000.0,
+            email_verified=True,
+            needs_username_setup=False
         )
         db.session.add(student1)
-        print("  ✓ Created demo student (username: student, password: password)")
+        print("  ✓ Created demo student (username: student, email: student@example.com, password: password)")
     else:
         print("  - Student account already exists")
 
@@ -301,23 +307,29 @@ def create_demo_data():
     if not student2:
         student2 = Player(
             username='alice',
+            email='alice@example.com',
             password_hash=generate_password_hash('password'),
             is_professor=False,
-            personal_cash=1000.0
+            personal_cash=1000.0,
+            email_verified=True,
+            needs_username_setup=False
         )
         db.session.add(student2)
-        print("  ✓ Created demo student (username: alice, password: password)")
+        print("  ✓ Created demo student (username: alice, email: alice@example.com, password: password)")
 
     student3 = Player.query.filter_by(username='bob').first()
     if not student3:
         student3 = Player(
             username='bob',
+            email='bob@example.com',
             password_hash=generate_password_hash('password'),
             is_professor=False,
-            personal_cash=1000.0
+            personal_cash=1000.0,
+            email_verified=True,
+            needs_username_setup=False
         )
         db.session.add(student3)
-        print("  ✓ Created demo student (username: bob, password: password)")
+        print("  ✓ Created demo student (username: bob, email: bob@example.com, password: password)")
 
     db.session.commit()
 

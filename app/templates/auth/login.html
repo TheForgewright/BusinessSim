@@ -12,8 +12,9 @@
             <div class="card-body">
                 <form method="POST">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required autofocus>
+                        <label for="login_identifier" class="form-label">Email or Username</label>
+                        <input type="text" class="form-control" id="login_identifier" name="login_identifier" required autofocus>
+                        <small class="form-text text-muted">Enter your email address or username</small>
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
@@ -24,9 +25,14 @@
 
                 <hr>
 
-                <p class="text-center mb-0">
-                    Don't have an account? <a href="{{ url_for('auth.register') }}">Register here</a>
-                </p>
+                <div class="text-center">
+                    <p class="mb-2">
+                        <a href="{{ url_for('auth.request_reset') }}">Forgot your password?</a>
+                    </p>
+                    <p class="mb-0">
+                        Professor? <a href="{{ url_for('auth.register') }}">Register here</a>
+                    </p>
+                </div>
             </div>
         </div>
     </div>

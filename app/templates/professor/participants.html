@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Participants - Business Simulation Game{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Participant Management</h2>
+        </div>
+        <div class="col text-end">
+            <a href="{{ url_for('professor.invite_participant') }}" class="btn btn-success">
+                <i class="bi bi-envelope-plus"></i> Invite New Participant
+            </a>
+            <a href="{{ url_for('professor.dashboard') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if participants %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Username</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Last Login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for participant in participants %}
+                        <tr>
+                            <td>{{ participant.email }}</td>
+                            <td>
+                                {% if participant.username %}
+                                {{ participant.username }}
+                                {% else %}
+                                <em class="text-muted">Not set</em>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not participant.password_hash %}
+                                <span class="badge bg-warning">Pending</span>
+                                {% elif participant.needs_username_setup %}
+                                <span class="badge bg-info">Setup Incomplete</span>
+                                {% else %}
+                                <span class="badge bg-success">Active</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ participant.created_at.strftime('%Y-%m-%d') if participant.created_at else 'N/A' }}</td>
+                            <td>
+                                {% if participant.last_login %}
+                                {{ participant.last_login.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                <em class="text-muted">Never</em>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not participant.password_hash %}
+                                <form method="POST" action="{{ url_for('professor.resend_invitation', participant_id=participant.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-info" title="Resend Invitation">
+                                        <i class="bi bi-envelope"></i> Resend
+                                    </button>
+                                </form>
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('professor.delete_participant', participant_id=participant.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this participant?');">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Delete Participant">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <p class="text-muted">No participants yet.</p>
+                <a href="{{ url_for('professor.invite_participant') }}" class="btn btn-success">
+                    Invite Your First Participant
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
